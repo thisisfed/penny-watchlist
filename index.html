@@ -3,182 +3,480 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Penny Stock Watchlist — Robinhood UK</title>
-<meta name="description" content="Auto-updating watchlist of sub-$5 US-listed stocks with catalysts, dilution flags and a daily movers scan. Not investment advice.">
+<title>Squeeze — Penny Stock Watchlist</title>
+<meta name="description" content="Sub-$5 US-listed setups ranked by setup strength, with dated catalysts, float, short interest and the SEC dilution filings most lists leave out. Not investment advice.">
+<meta property="og:title" content="Squeeze — Penny Stock Watchlist">
+<meta property="og:description" content="Sub-$5 setups ranked by setup strength, with the dilution filings shown. Updated every 30 minutes.">
+<meta property="og:image" content="https://squeeze.thisisfed.xyz/og.png">
+<meta property="og:url" content="https://squeeze.thisisfed.xyz/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://squeeze.thisisfed.xyz/og.png">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
 <link rel="alternate icon" href="favicon.ico">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="theme-color" content="#16161a">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#f6f5f1;--card:#fff;--ink:#16161a;--mute:#6b6a70;--line:#e4e2dc;--a:#0f766e;--b:#7c3aed;--c:#b45309;--d:#475569;--x:#b91c1c;--up:#15803d;--down:#b91c1c}
-@media (prefers-color-scheme:dark){:root{--bg:#121214;--card:#1b1b1f;--ink:#ececf0;--mute:#9a99a2;--line:#2c2c33;--a:#2dd4bf;--b:#a78bfa;--c:#f59e0b;--d:#94a3b8;--x:#f87171;--up:#4ade80;--down:#f87171}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Inter,system-ui,sans-serif}
+:root{--bg:#f6f5f1;--card:#fff;--card2:#fbfaf7;--ink:#16161a;--mute:#6b6a70;--line:#e4e2dc;--a:#0f766e;--b:#7c3aed;--c:#b45309;--d:#475569;--x:#b91c1c;--up:#15803d;--down:#b91c1c;--upbg:21,128,61;--downbg:185,28,28;--hot:#ea580c;--focus:#2563eb;color-scheme:light}
+:root[data-theme=dark]{--bg:#111113;--card:#1a1a1e;--card2:#1f1f24;--ink:#ececf0;--mute:#9a99a2;--line:#2c2c33;--a:#2dd4bf;--b:#a78bfa;--c:#f59e0b;--d:#94a3b8;--x:#f87171;--up:#4ade80;--down:#f87171;--upbg:74,222,128;--downbg:248,113,113;--hot:#fb923c;--focus:#60a5fa;color-scheme:dark}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#111113;--card:#1a1a1e;--card2:#1f1f24;--ink:#ececf0;--mute:#9a99a2;--line:#2c2c33;--a:#2dd4bf;--b:#a78bfa;--c:#f59e0b;--d:#94a3b8;--x:#f87171;--up:#4ade80;--down:#f87171;--upbg:74,222,128;--downbg:248,113,113;--hot:#fb923c;--focus:#60a5fa;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 a{color:inherit}
-.wrap{max-width:1280px;margin:0 auto;padding:28px 18px 60px}
-h1{font-size:26px;margin:0 0 4px;letter-spacing:-.02em}h2{font-size:17px;margin:32px 0 10px}
-.sub{color:var(--mute);margin:0 0 18px}
-.live{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--mute)}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--up)}.dot.stale{background:var(--c)}
-.note{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--x);border-radius:10px;padding:14px 16px;margin:14px 0 18px;font-size:14px}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
+.wrap{max-width:1440px;margin:0 auto;padding:24px 18px 64px}
+.mono,.tk{font-family:'JetBrains Mono',ui-monospace,monospace}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.mute{color:var(--mute)}.small{font-size:12px}
+h1{font-size:24px;margin:0;letter-spacing:-.02em}
+h2{font-size:15px;margin:28px 0 10px;letter-spacing:-.01em}
+.top{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;justify-content:space-between}
+.lede{margin:4px 0 8px;color:var(--mute);max-width:760px}
+.status{display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--mute)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--up);margin-right:6px;vertical-align:1px}.dot.stale{background:var(--c)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--card)}
+.seg button{border:0;background:none;padding:5px 10px;font-size:12.5px;cursor:pointer;color:var(--mute)}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--bg)}
+.note{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--x);border-radius:10px;padding:12px 14px;margin:14px 0 6px;font-size:13.5px}
 .note b{color:var(--x)}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
-.card h3{margin:0 0 6px;font-size:14px}.card p{margin:0;color:var(--mute);font-size:13.5px}
-.cal{display:grid;grid-template-columns:96px 1fr;gap:6px 14px;font-size:13.5px}
-.cal .d{font-family:'JetBrains Mono',monospace;white-space:nowrap}
-.filters{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px}
-.filters button{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
-.filters button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-.tbl{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:10px}
-table{border-collapse:collapse;width:100%}
-#t{min-width:1180px}#m{min-width:820px}
-th,td{text-align:left;padding:9px 11px;border-bottom:1px solid var(--line);vertical-align:top;font-size:13.5px}
-th{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);white-space:nowrap}
-th.s{cursor:pointer;user-select:none}th.s:hover{color:var(--ink)}
-tr:last-child td{border-bottom:0}
-.tk{font-family:'JetBrains Mono',monospace;font-weight:500}
-.tag{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;color:#fff;white-space:nowrap}
+.alertbar{display:none;align-items:center;gap:10px;flex-wrap:wrap;background:rgba(var(--downbg),.08);border:1px solid var(--x);border-radius:10px;padding:10px 14px;margin:10px 0;font-size:13.5px}
+.alertbar.on{display:flex}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:5px 10px;font-size:12.5px;cursor:pointer}
+.btn:hover{border-color:var(--mute)}
+details.explain{background:var(--card);border:1px solid var(--line);border-radius:10px;margin-top:14px}
+details.explain>summary{cursor:pointer;padding:11px 14px;font-weight:600;list-style:none}
+details.explain>summary::-webkit-details-marker{display:none}
+details.explain>summary::after{content:"Show";float:right;font-weight:500;color:var(--mute);font-size:12.5px}
+details.explain[open]>summary::after{content:"Hide"}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;padding:0 14px 14px}
+.grid div{background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.grid h3{margin:0 0 4px;font-size:13px}.grid p{margin:0;color:var(--mute);font-size:13px}
+.cal{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px 0}
+.cal .ev{display:grid;grid-template-columns:92px 74px 1fr;gap:10px;padding:6px 14px;align-items:baseline}
+.cal .ev+.ev{border-top:1px solid var(--line)}
+.cd{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--card2);border:1px solid var(--line);white-space:nowrap}
+.cd.soon{border-color:var(--hot);color:var(--hot)}.cd.today{background:var(--hot);border-color:var(--hot);color:#fff}.cd.past{opacity:.55}
+/* toolbar */
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
+.search{flex:1 1 220px;max-width:320px;position:relative}
+.search input{width:100%;padding:7px 10px 7px 30px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit}
+.search svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);opacity:.5}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:4px 10px;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.chip[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip .k{font-weight:700;margin-right:4px}
+.count{font-size:12.5px;color:var(--mute);margin-left:auto}
+/* table */
+.tw{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:auto;max-height:calc(100vh - 40px);position:relative}
+table{border-collapse:separate;border-spacing:0;width:100%}
+#t{min-width:1320px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle;background:var(--card)}
+th{position:sticky;top:0;z-index:3;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);white-space:nowrap;background:var(--card2)}
+th button{border:0;background:none;padding:0;font:inherit;text-transform:inherit;letter-spacing:inherit;color:inherit;cursor:pointer;white-space:nowrap}
+th button:hover{color:var(--ink)}
+th[aria-sort=ascending] button::after{content:" ▲"}th[aria-sort=descending] button::after{content:" ▼"}
+th.r,td.r{text-align:right}
+.s0{position:sticky;left:0;z-index:2;width:34px;min-width:34px;padding-right:0}
+.s1{position:sticky;left:34px;z-index:2;width:136px;min-width:136px}
+.s2{position:sticky;left:170px;z-index:2;width:92px;min-width:92px;box-shadow:inset -1px 0 0 var(--line)}
+th.s0,th.s1,th.s2{z-index:4}
+tr.main:hover td{background:var(--card2)}
+tr.main{cursor:pointer}
+tr.hot td.s0{box-shadow:inset 3px 0 0 var(--hot)}
+tr.sub td{background:var(--card2);padding:14px 16px 16px}
+.star{border:0;background:none;cursor:pointer;font-size:16px;line-height:1;color:var(--mute);padding:2px}
+.star[aria-pressed=true]{color:#eab308}
+.tkn{font-weight:600;font-size:13.5px}
+.nm{display:block;font-size:11.5px;color:var(--mute);max-width:128px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hotb{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.04em;padding:1px 5px;border-radius:4px;background:var(--hot);color:#fff;margin-left:5px;vertical-align:1px}
+.price{font-weight:600;font-size:13.5px}
+.pct{display:inline-block;min-width:62px;text-align:right;padding:2px 6px;border-radius:5px;font-weight:600}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;color:#fff;white-space:nowrap}
 .tA{background:var(--a)}.tB{background:var(--b)}.tC{background:var(--c)}.tD{background:var(--d)}.tX{background:var(--x)}
-.num{font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
-th.num{text-align:right}
-.up{color:var(--up)}.down{color:var(--down)}
-.mute{color:var(--mute);font-size:12.5px}
-.rh{font-size:12px;font-weight:600;white-space:nowrap}.rh.ok{color:var(--up)}.rh.no{color:var(--x)}.rh.check{color:var(--mute)}
-.fl{display:inline-block;font-size:11px;font-weight:600;padding:1px 6px;border-radius:5px;border:1px solid var(--x);color:var(--x);margin:0 4px 3px 0;text-decoration:none;white-space:nowrap}
-.hot{display:inline-block;font-size:11px;font-weight:700;padding:1px 6px;border-radius:5px;background:var(--c);color:#fff}
-.txt{min-width:220px;max-width:340px}
+.score{display:inline-flex;align-items:center;gap:6px;cursor:help}
+.score .bar{width:44px;height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.score .bar i{display:block;height:100%;border-radius:3px}
+.score b{font-size:13px;min-width:24px}
+.rh{font-size:11.5px;font-weight:600;white-space:nowrap}.rh.ok{color:var(--up)}.rh.no{color:var(--x)}.rh.check{color:var(--mute)}
+.sum{max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--mute);font-size:12.5px}
+.exp{border:1px solid var(--line);background:var(--card);border-radius:6px;width:26px;height:26px;cursor:pointer;display:inline-grid;place-items:center;font-size:12px;color:var(--mute)}
+.exp[aria-expanded=true]{transform:rotate(180deg)}
+.fl{display:inline-block;font-size:11px;font-weight:600;padding:1px 6px;border-radius:5px;border:1px solid var(--x);color:var(--x);margin:0 4px 4px 0;text-decoration:none;white-space:nowrap}
+.fl.new{background:var(--x);color:#fff}
+.fcount{display:inline-block;font-size:11px;font-weight:700;color:var(--x);border:1px solid var(--x);border-radius:5px;padding:0 5px;margin-left:4px}
+.fcount.new{background:var(--x);color:#fff}
+.siind{display:inline-flex;align-items:center;gap:4px}
+.siind .m{width:30px;height:5px;border-radius:3px;background:var(--line);overflow:hidden}.siind .m i{display:block;height:100%;background:var(--c)}
 svg.sp{display:block}
+/* detail panel */
+.det{display:grid;grid-template-columns:minmax(260px,1.3fr) minmax(240px,1fr) minmax(240px,.9fr);gap:18px}
+.det h4{margin:0 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--mute)}
+.det p{margin:0 0 12px;font-size:13.5px;max-width:60ch}
+.bd{width:100%;border-collapse:collapse;font-size:12.5px}
+.bd td{background:none;padding:3px 0;border:0}
+.bd td:last-child{text-align:right;font-weight:600}
+.links{display:flex;gap:10px;flex-wrap:wrap;font-size:12.5px;margin-top:6px}
+textarea.notes{width:100%;min-height:64px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);padding:8px;font:inherit;font-size:13px;resize:vertical}
+label.tg{display:flex;gap:6px;align-items:center;font-size:12.5px;margin-top:8px;cursor:pointer}
+/* compact */
+body.compact th,body.compact td{padding:5px 8px}
+body.compact .nm,body.compact .colSum{display:none}
+body.compact .vbar{display:none}
+.empty{padding:28px 16px;text-align:center;color:var(--mute)}
+/* cards (mobile) */
+#cards{display:none}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 12px 10px;margin-bottom:10px}
+.card.hot{border-left:4px solid var(--hot)}
+.card .r1{display:flex;align-items:center;gap:8px}
+.card .r1 .grow{flex:1;min-width:0}
+.card .r2{display:grid;grid-template-columns:repeat(3,1fr);gap:6px 10px;margin:10px 0 6px;font-size:12px}
+.card .r2 .lb{display:block;color:var(--mute);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;font-style:normal;margin-bottom:2px}
+.card .r2 .pct{min-width:0;padding:1px 5px}
+.card .why{font-size:13px;color:var(--mute);margin:4px 0}
+.card .det{grid-template-columns:1fr;gap:6px;margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+@media (max-width:700px){
+  .wrap{padding:16px 12px 48px}
+  #tw{display:none}#cards{display:block}
+  .count{margin-left:0;width:100%}
+  .cal .ev{grid-template-columns:78px 1fr}.cal .ev .cdw{grid-column:2}
+  #mv{min-width:640px}
+}
+/* movers + track record */
+#mv{min-width:820px}
+#mv td,#mv th{position:static}
+.tr{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}
+.tr div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:13px}
+.tr .h{display:flex;justify-content:space-between;gap:8px;margin-bottom:4px}
 ul{margin:6px 0 0;padding-left:18px}li{margin:3px 0}
-footer{margin-top:28px;color:var(--mute);font-size:12.5px}
-.err{color:var(--c);font-size:12.5px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+footer{margin-top:28px;color:var(--mute);font-size:12px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 </style>
 </head>
 <body>
 <div class="wrap">
-<h1>Penny Stock Watchlist</h1>
-<p class="sub">US-listed names from $0.03 to $5 with a visible reason they could move hard — prices, volume and dilution filings refresh automatically.</p>
-<span class="live"><span class="dot" id="dot"></span><span id="upd">Loading…</span></span>
+<header class="top">
+  <div>
+    <h1>Squeeze <span class="mute" style="font-weight:500">— penny stock watchlist</span></h1>
+    <p class="lede" id="about">Sub-$5 US-listed names with a dated or structural reason to move, shown next to the dilution evidence most penny-stock lists leave out.</p>
+    <div class="status"><span><span class="dot" id="dot"></span><span id="upd">Loading…</span></span><span id="next-run"></span></div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <div class="seg" role="group" aria-label="Theme"><button data-theme-set="system" aria-pressed="true">Auto</button><button data-theme-set="light" aria-pressed="false">Light</button><button data-theme-set="dark" aria-pressed="false">Dark</button></div>
+    <div class="seg" role="group" aria-label="Density"><button id="dens-c" aria-pressed="false">Compact</button></div>
+  </div>
+</header>
 
-<div class="note"><b>Read this first.</b> Robinhood UK only offers US <i>exchange-listed</i> shares, never OTC, so true micropennies can't be bought there, and availability doesn't follow an obvious rule: check every ticker in the app. These are setups to watch, not buy calls. At this price level most explosive moves give it all back within days, and many of these companies fund themselves by selling stock into exactly those spikes. Prices are delayed. Not investment advice.</div>
+<div class="note"><b>Risk first.</b> Robinhood UK sells US exchange-listed shares only (no OTC), and availability doesn't follow a published rule: check each ticker in the app. Most moves at this price round-trip within days, and many of these companies fund themselves by selling stock into exactly those spikes. Prices are delayed. The score ranks how primed a setup is, not whether it's worth owning. Not investment advice.</div>
 
-<h2>What drives explosive moves at this price</h2>
-<div class="grid">
-<div class="card"><h3>Dated catalyst</h3><p>FDA decision, results, investor day. INO is the case study: FDA approval on 30 10 2026, roughly 3× in a day, then it cooled.</p></div>
-<div class="card"><h3>Low float after a reverse split</h3><p>A 1-for-30 split can leave about 1M shares in circulation, so any news moves the price violently — and fresh share sales usually follow.</p></div>
-<div class="card"><h3>Crowded short</h3><p>High short interest on a small float. Good news forces shorts to buy back: the squeeze.</p></div>
-<div class="card"><h3>The traps</h3><p>The red “filing” badges below link to recent SEC filings (S-1, S-3, F-1, 424B…) that usually mean new shares are coming.</p></div>
+<div class="alertbar" id="alertbar" role="status"></div>
+
+<details class="explain" id="explain" open>
+  <summary>What drives moves here — and the traps</summary>
+  <div class="grid">
+    <div><h3>Dated catalyst</h3><p>FDA decision, results, investor day, reverse split. Known date, unknown direction. See the track record below for how recent ones played out.</p></div>
+    <div><h3>Low float after a split</h3><p>A 1-for-30 split can leave ~1M shares outstanding. News moves that violently — and a shelf takedown usually follows.</p></div>
+    <div><h3>Crowded short</h3><p>High short interest on a small float means good news forces covering. Short data is twice-monthly and lags.</p></div>
+    <div><h3>The traps</h3><p>ATMs, equity lines, resale registrations, warrants and resetting converts. Red badges link to the actual EDGAR filings (S-1, S-3, F-1, 424B, EFFECT).</p></div>
+  </div>
+</details>
+
+<h2>Catalyst calendar</h2>
+<div class="cal" id="cal"></div>
+
+<h2 id="wl-h">The watchlist</h2>
+<div class="toolbar" role="search">
+  <label class="search"><span class="sr">Search ticker or name</span>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="q" type="search" placeholder="Search ticker or name  ( / )" autocomplete="off"></label>
+  <div class="chips" id="tiers" role="group" aria-label="Tiers"></div>
+</div>
+<div class="toolbar">
+  <div class="chips" id="flt" role="group" aria-label="Filters"></div>
+  <button class="btn" id="reset" hidden>Reset filters</button>
+  <span class="count" id="count" aria-live="polite"></span>
 </div>
 
-<h2>Calendar</h2>
-<div class="card"><div class="cal" id="cal"></div></div>
-
-<h2>The watchlist</h2>
-<div class="filters" id="f"></div>
-<div class="tbl"><table id="t">
+<div class="tw" id="tw">
+<table id="t">
+<caption class="sr">Watchlist. Click a row or press Enter on its expand button for details.</caption>
 <thead><tr>
-<th class="s" data-k="ticker">Ticker</th><th class="s" data-k="tier">Tier</th><th>30 days</th>
-<th class="s num" data-k="price">Price</th><th class="s num" data-k="chg_pct">Day</th><th class="s num" data-k="chg_5d">5 days</th>
-<th class="s num" data-k="rel_vol">Rel. vol</th><th class="s num" data-k="market_cap">Mkt cap</th><th class="s num" data-k="hi_mult">52w high ÷ price</th>
-<th>RH UK</th><th>Why watch</th><th>Key risk</th><th>Next trigger</th>
-</tr></thead><tbody></tbody></table></div>
-<p class="mute">Rel. vol = today's volume ÷ 20-day average. A 52-week high far above the price usually means repeated collapses or reverse splits.</p>
+  <th class="s0" scope="col"><span class="sr">Star</span></th>
+  <th class="s1" scope="col" data-k="ticker"><button>Ticker</button></th>
+  <th class="s2 r" scope="col" data-k="price"><button>Price</button></th>
+  <th class="r" scope="col" data-k="chg_pct"><button>Day</button></th>
+  <th class="r" scope="col" data-k="chg_5d"><button>5D</button></th>
+  <th scope="col" data-k="score"><button title="0–10 setup strength: catalyst proximity, float, short interest, relative volume, minus dilution filings and pump signs">Setup</button></th>
+  <th scope="col">30 days · volume</th>
+  <th class="r" scope="col" data-k="rel_vol"><button>Rel vol</button></th>
+  <th class="r" scope="col" data-k="market_cap"><button>Mkt cap</button></th>
+  <th class="r" scope="col" data-k="float_shares"><button>Float</button></th>
+  <th scope="col" data-k="short_pct"><button>Short %</button></th>
+  <th class="r" scope="col" data-k="hi_mult"><button title="52-week high divided by price — large numbers usually mean repeated collapses or reverse splits">52w hi ÷ px</button></th>
+  <th scope="col" data-k="days_to_next"><button>Next catalyst</button></th>
+  <th scope="col" data-k="tier"><button>Tier</button></th>
+  <th scope="col">RH UK</th>
+  <th scope="col" class="colSum">Why watch</th>
+  <th scope="col"><span class="sr">Details</span></th>
+</tr></thead>
+<tbody></tbody>
+</table>
+</div>
+<div id="cards" aria-label="Watchlist cards"></div>
 
-<h2>Today's sub-$5 movers <span class="mute">(automatic scan: US exchanges, up 15%+ on 1M+ shares)</span></h2>
-<div class="tbl"><table id="m">
-<thead><tr><th>Ticker</th><th>Name</th><th class="num">Price</th><th class="num">Day</th><th class="num">Rel. vol</th><th class="num">Mkt cap</th><th>Red flags</th></tr></thead>
-<tbody></tbody></table></div>
-<p class="mute">Not curated: this is raw momentum. Most of these are pumps. Use it to spot names worth researching, then add them to <span class="tk">data/watchlist.json</span>.</p>
+<h2>Post-catalyst track record <span class="mute small" style="font-weight:400">manual, for calibration</span></h2>
+<div class="tr" id="track"></div>
+
+<h2>Discovery: today's sub-$5 movers <span class="mute small" style="font-weight:400">automatic scan · US exchanges · up 15%+ on 1M+ shares · unvetted</span></h2>
+<div class="tw" style="max-height:none"><table id="mv"><thead><tr>
+  <th>Ticker</th><th>Name</th><th class="r">Price</th><th class="r">Day</th><th class="r">Rel vol</th><th class="r">Mkt cap</th><th class="r">52w hi ÷ px</th><th>Red flags</th><th>Research</th>
+</tr></thead><tbody></tbody></table></div>
+<p class="mute small">Raw momentum, mostly pumps. Use it to find names worth researching; anything that survives a look at its filings can be added to <span class="mono">data/watchlist.json</span>.</p>
 
 <h2>If you trade any of these</h2>
-<div class="card"><ul>
-<li>Use <b>limit orders</b> only. Spreads under $1 can be 5–10%.</li>
-<li>Size each position as money you'd accept losing entirely. A common rule is no more than 1–2% of the portfolio per name.</li>
-<li>Click the red filing badges before buying: a fresh 424B or S-1 means shares are about to be sold.</li>
-<li>Around reverse splits, trading may pause on the effective date.</li>
+<div class="box"><ul>
+<li>Limit orders only. Sub-$1 spreads run 5–10%, and sub-cent names trade in fractions of a cent.</li>
+<li>Size every position as a full loss you can accept — a common rule is 1–2% of the portfolio per name.</li>
+<li>Open the filing badges first. A fresh 424B means shares are being sold now; an S-1/F-1 resale registration means holders can sell soon; EFFECT means a registration just went live.</li>
+<li>Expect a trading pause on reverse-split effective dates.</li>
 </ul></div>
 
-<p class="err" id="errs"></p>
-<footer>Data: Yahoo Finance (delayed) and SEC EDGAR, refreshed every 30 minutes on US trading days by GitHub Actions. Notes are hand-written and may be out of date. Not financial advice. <a href="https://github.com/thisisfed/penny-watchlist">Source on GitHub</a>.</footer>
+<p class="mute small" id="errs"></p>
+<footer>Data: Yahoo Finance (delayed; float and short interest where available, short data reported twice monthly) and SEC EDGAR. Refreshed every 30 minutes, 09:00–23:30 UK time on weekdays, plus a weekend pass. Stars, notes and alerts stay in this browser only. Notes are hand-written and can go stale. Not financial advice. <a href="https://github.com/thisisfed/penny-watchlist">Source on GitHub</a>.</footer>
 </div>
 
 <script>
-const $=s=>document.querySelector(s);
-const pad=n=>String(n).padStart(2,'0');
-const dmy=iso=>{const [y,m,d]=iso.slice(0,10).split('-');return `${d} ${m} ${y}`};
-const fmtPrice=p=>p==null?'—':'$'+(p<1?p.toFixed(4).replace(/0+$/,'').replace(/\.$/,''):p.toFixed(2));
-const fmtPct=p=>p==null?'—':`<span class="${p>=0?'up':'down'}">${p>=0?'+':''}${p.toFixed(1)}%</span>`;
-const fmtCap=c=>c==null?'—':c>=1e9?'$'+(c/1e9).toFixed(2)+'B':c>=1e6?'$'+(c/1e6).toFixed(1)+'M':'$'+(c/1e3).toFixed(0)+'K';
-const fmtX=x=>x==null?'—':x.toFixed(1)+'×';
-const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const RH={ok:'Reported OK',no:'Not tradable',check:'Check'};
-
-function spark(v){
-  v=(v||[]).filter(x=>x!=null);if(v.length<2)return '';
-  const w=90,h=26,mn=Math.min(...v),mx=Math.max(...v),r=mx-mn||1;
-  const pts=v.map((y,i)=>`${(i/(v.length-1)*w).toFixed(1)},${(h-2-(y-mn)/r*(h-4)).toFixed(1)}`).join(' ');
+(()=>{
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const dmy=iso=>{if(!iso)return '';const[y,m,d]=iso.slice(0,10).split('-');return `${d} ${m} ${y}`};
+const dm=iso=>dmy(iso).slice(0,5);
+const fP=p=>p==null?'—':'$'+(p<1?p.toFixed(4).replace(/0+$/,'').replace(/\.$/,''):p.toFixed(2));
+const fCap=c=>c==null?'—':c>=1e9?'$'+(c/1e9).toFixed(2)+'B':c>=1e6?'$'+(c/1e6).toFixed(1)+'M':'$'+Math.round(c/1e3)+'K';
+const fSh=c=>c==null?'—':c>=1e9?(c/1e9).toFixed(1)+'B':c>=1e6?(c/1e6).toFixed(c<1e7?2:1)+'M':Math.round(c/1e3)+'K';
+const fX=x=>x==null?'—':(x>=100?Math.round(x):x.toFixed(1))+'×';
+function pct(p){if(p==null)return '<span class="pct mute">—</span>';const a=Math.min(Math.abs(p)/50,1)*.32+.04;
+  return `<span class="pct" style="color:var(--${p>=0?'up':'down'});background:rgba(var(--${p>=0?'up':'down'}bg),${a.toFixed(2)})">${p>=0?'+':''}${p.toFixed(1)}%</span>`}
+const scol=s=>s>=6.5?'var(--up)':s>=4.5?'var(--c)':'var(--mute)';
+function score(r){if(r.score==null)return '<span class="mute">—</span>';
+  const tip=(r.parts||[]).map(p=>`${p[0]}: ${p[1]>0?'+':''}${p[1]} (${p[2]})`).join('\n');
+  return `<span class="score" title="Setup strength ${r.score}/10\n${esc(tip)}"><span class="bar"><i style="width:${r.score*10}%;background:${scol(r.score)}"></i></span><b>${r.score.toFixed(1)}</b></span>`}
+function cd(days){if(days==null)return '';if(days<0)return `<span class="cd past">${-days}d ago</span>`;
+  if(days===0)return '<span class="cd today">today</span>';if(days===1)return '<span class="cd soon">tomorrow</span>';
+  return `<span class="cd ${days<=7?'soon':''}">in ${days}d</span>`}
+function daysTo(iso){if(!iso)return null;const t=new Date(iso+'T00:00:00Z'),n=new Date();const u=Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate());return Math.round((t-u)/864e5)}
+function spark(v,vol,big){v=(v||[]).filter(x=>x!=null);if(v.length<2)return '<span class="mute small">no data</span>';
+  const w=big?280:120,h=big?44:28,vh=big?14:9,mn=Math.min(...v),mx=Math.max(...v),rg=mx-mn||1;
+  const pts=v.map((y,i)=>`${(i/(v.length-1)*w).toFixed(1)},${(h-2-(y-mn)/rg*(h-4)).toFixed(1)}`).join(' ');
   const col=v[v.length-1]>=v[0]?'var(--up)':'var(--down)';
-  return `<svg class="sp" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline fill="none" stroke="${col}" stroke-width="1.5" points="${pts}"/></svg>`;
+  let bars='';const vv=(vol||[]).slice(-v.length);if(vv.length){const vm=Math.max(...vv.map(x=>x||0))||1;const bw=w/vv.length;
+    const avg=vv.slice(0,-1).reduce((a,b)=>a+(b||0),0)/Math.max(vv.length-1,1);
+    bars=vv.map((x,i)=>{const bh=Math.max(1,(x||0)/vm*vh);const hi=(x||0)>avg*2;return `<rect x="${(i*bw+.5).toFixed(1)}" y="${(h+vh+2-bh).toFixed(1)}" width="${Math.max(bw-1,1).toFixed(1)}" height="${bh.toFixed(1)}" fill="${hi?'var(--hot)':'var(--mute)'}" opacity="${hi?.9:.35}"/>`}).join('')}
+  return `<svg class="sp" width="${w}" height="${h+vh+2}" viewBox="0 0 ${w} ${h+vh+2}" role="img" aria-label="30-day price trend"><polyline fill="none" stroke="${col}" stroke-width="${big?2:1.6}" stroke-linejoin="round" points="${pts}"/><g class="vbar">${bars}</g></svg>`}
+function siInd(r){if(r.short_pct==null)return '<span class="mute">—</span>';const w=Math.min(r.short_pct/50,1)*100;
+  return `<span class="siind" title="Short interest ${r.short_pct.toFixed(1)}% of float${r.days_to_cover?`, ${r.days_to_cover.toFixed(1)} days to cover`:''}${r.short_as_of?`, as of ${dmy(r.short_as_of)}`:''}"><span class="m"><i style="width:${w}%"></i></span><span class="num">${r.short_pct.toFixed(0)}%</span></span>`}
+const RH={ok:['ok','Reported OK'],no:['no','Not tradable'],check:['check','Unverified']};
+const firstSentence=s=>{const m=String(s||'').match(/^.*?[.!?](\s|$)/);return m?m[0].trim():s};
+
+// ---------- personal state (this browser only)
+const KEY='squeeze:v1';let S={stars:[],notes:{},alerts:{},seen:{},theme:'system',compact:false,explain:true,tiers:[],flt:[],sort:{k:'score',d:-1},notify:false};
+try{Object.assign(S,JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+const starred=t=>S.stars.includes(t);
+
+function applyTheme(){if(S.theme==='system')document.documentElement.removeAttribute('data-theme');else document.documentElement.setAttribute('data-theme',S.theme);
+  $$('[data-theme-set]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.themeSet===S.theme))}
+$$('[data-theme-set]').forEach(b=>b.onclick=()=>{S.theme=b.dataset.themeSet;save();applyTheme()});
+function applyCompact(){document.body.classList.toggle('compact',S.compact);$('#dens-c').setAttribute('aria-pressed',S.compact)}
+$('#dens-c').onclick=()=>{S.compact=!S.compact;save();applyCompact()};
+applyTheme();applyCompact();
+const ex=$('#explain');ex.open=S.explain!==false;ex.addEventListener('toggle',()=>{S.explain=ex.open;save()});
+
+let WL=null,LIVE=null,ROWS=[],open=new Set(),query='';
+const FILTERS=[
+  ['mine','★ My list',r=>starred(r.ticker)],
+  ['soon','Catalyst ≤ 14d',r=>r.days_to_next!=null&&r.days_to_next>=0&&r.days_to_next<=14],
+  ['rhok','RH reported OK',r=>r.rh==='ok'],
+  ['rv2','Rel vol > 2×',r=>(r.rel_vol||0)>2],
+  ['cap50','Mkt cap < $50M',r=>r.market_cap!=null&&r.market_cap<5e7],
+  ['dil','Dilution filing',r=>r.filings.length>0],
+  ['newf','New filings',r=>r.newFilings>0],
+  ['hidex','Hide avoid tier',r=>r.tier!=='X'],
+];
+
+function build(){
+  const st=LIVE?.stocks||{},fi=LIVE?.filings||{};
+  ROWS=WL.stocks.map(s=>{const q=st[s.ticker]||{};const price=q.price??null;
+    const items=(fi[s.ticker]?.items)||[];const seen=S.seen[s.ticker]||[];
+    const newFilings=(S.seen[s.ticker]?items.filter(f=>!seen.includes(f.id||f.url)).length:0);
+    const next=s.next||q.next_date||null;const label=s.next?s.next_label:(q.next_label||null);
+    return {...s,...q,price,next,next_label:label,days_to_next:daysTo(next),hi_mult:price&&q.year_high?q.year_high/price:null,
+      filings:items,cik:fi[s.ticker]?.cik,newFilings,hot:(q.chg_pct!=null&&Math.abs(q.chg_pct)>=20)||(q.rel_vol!=null&&q.rel_vol>=5)}});
+  // first visit: everything counts as seen
+  WL.stocks.forEach(s=>{if(!S.seen[s.ticker]){S.seen[s.ticker]=((fi[s.ticker]?.items)||[]).map(f=>f.id||f.url)}});save();
 }
 
-let rows=[],tier='all',sortK=null,dir=1;
+function filtered(){
+  const qq=query.trim().toLowerCase();
+  let list=ROWS.filter(r=>(!S.tiers.length||S.tiers.includes(r.tier))&&S.flt.every(k=>FILTERS.find(f=>f[0]===k)[2](r))&&
+    (!qq||r.ticker.toLowerCase().includes(qq)||r.name.toLowerCase().includes(qq)));
+  const {k,d}=S.sort;
+  list.sort((a,b)=>{let x=a[k],y=b[k];
+    if(k==='days_to_next'){x=x==null||x<0?1e9:x;y=y==null||y<0?1e9:y}
+    if(typeof x==='string'||typeof y==='string')return String(x??'').localeCompare(String(y??''))*d;
+    return ((x??-1e18)-(y??-1e18))*d});
+  return list;
+}
+
+function filingBadges(r){return r.filings.map(f=>{const isNew=!(S.seen[r.ticker]||[]).includes(f.id||f.url);
+  return `<a class="fl${isNew?' new':''}" href="${esc(f.url)}" target="_blank" rel="noopener" title="${esc(f.form)} filed ${dmy(f.date)}">${isNew?'NEW · ':''}${esc(f.form)} ${dm(f.date)}</a>`}).join('')||'<span class="mute small">None in the last 30 days.</span>'}
+
+function detail(r){
+  const parts=(r.parts||[]).map(p=>`<tr><td>${esc(p[0])} <span class="mute">· ${esc(p[2])}</span></td><td style="color:${p[1]>0?'var(--up)':p[1]<0?'var(--down)':'var(--mute)'}">${p[1]>0?'+':''}${p[1]}</td></tr>`).join('');
+  const edgar=r.cik?`https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${r.cik}&type=&dateb=&owner=include&count=40`:`https://efts.sec.gov/LATEST/search-index?q=${encodeURIComponent(r.ticker)}`;
+  return `<div class="det">
+    <div><h4>Why watch</h4><p>${esc(r.why)}</p><h4>Key risk</h4><p>${esc(r.risk)}</p>
+      <h4>Next trigger</h4><p>${r.next?`${dmy(r.next)} — ${esc(r.next_label||'')} ${cd(r.days_to_next)}`:''}${!r.next&&r.trigger?`<span class="mute">${esc(r.trigger)}</span>`:''}</p></div>
+    <div><h4>Dilution filings, last 30 days</h4><div>${filingBadges(r)}</div>
+      <h4 style="margin-top:10px">Setup score ${r.score!=null?r.score.toFixed(1):'—'} / 10</h4><table class="bd">${parts}<tr><td class="mute">Base</td><td class="mute">+1</td></tr></table>
+      <div class="links"><a href="https://finance.yahoo.com/quote/${encodeURIComponent(r.ticker)}" target="_blank" rel="noopener">Yahoo ↗</a><a href="${edgar}" target="_blank" rel="noopener">EDGAR ↗</a>
+      <span class="mute">${r.short_as_of?`Short data as of ${dmy(r.short_as_of)}`:''}</span></div></div>
+    <div><h4>30 days</h4>${spark(r.spark,r.vspark,true)}
+      <h4 style="margin-top:10px">My notes <span class="mute" style="text-transform:none;letter-spacing:0">(this browser only)</span></h4>
+      <textarea class="notes" data-note="${esc(r.ticker)}" placeholder="Entry idea, levels, what would make you walk away…">${esc(S.notes[r.ticker]||'')}</textarea>
+      <label class="tg"><input type="checkbox" data-alert="${esc(r.ticker)}" ${S.alerts[r.ticker]?'checked':''}> Alert me when a new filing appears</label></div>
+  </div>`}
+
+function rowHTML(r){
+  const rh=RH[r.rh]||RH.check,isOpen=open.has(r.ticker),id='d-'+r.ticker;
+  return `<tr class="main${r.hot?' hot':''}" data-t="${esc(r.ticker)}">
+  <td class="s0"><button class="star" data-star="${esc(r.ticker)}" aria-pressed="${starred(r.ticker)}" aria-label="Star ${esc(r.ticker)}">${starred(r.ticker)?'★':'☆'}</button></td>
+  <td class="s1"><span class="tk tkn">${esc(r.ticker)}</span>${r.hot?'<span class="hotb">HOT</span>':''}${r.filings.length?`<span class="fcount${r.newFilings?' new':''}" title="${r.filings.length} dilution-type filing(s) in 30 days${r.newFilings?`, ${r.newFilings} new`:''}">${r.filings.length}</span>`:''}<span class="nm">${esc(r.name)}</span></td>
+  <td class="s2 r price num">${fP(r.price)}</td>
+  <td class="r">${pct(r.chg_pct)}</td><td class="r">${pct(r.chg_5d)}</td>
+  <td>${score(r)}</td>
+  <td>${spark(r.spark,r.vspark)}</td>
+  <td class="r num" style="${(r.rel_vol||0)>=2?'color:var(--hot);font-weight:700':''}">${fX(r.rel_vol)}</td>
+  <td class="r num">${fCap(r.market_cap)}</td>
+  <td class="r num">${fSh(r.float_shares||r.shares)}</td>
+  <td>${siInd(r)}</td>
+  <td class="r num" style="${(r.hi_mult||0)>50?'color:var(--x);font-weight:600':''}">${fX(r.hi_mult)}</td>
+  <td>${r.next?`<span class="num">${dm(r.next)}</span> ${cd(r.days_to_next)}<div class="mute small" style="max-width:170px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.next_label||'')}</div>`:'<span class="mute small">undated</span>'}</td>
+  <td><span class="tag t${r.tier}">${r.tier==='X'?'Avoid':r.tier}</span></td>
+  <td><span class="rh ${rh[0]}">${rh[1]}</span></td>
+  <td class="colSum"><div class="sum" title="${esc(r.why)}">${esc(firstSentence(r.why))}</div></td>
+  <td><button class="exp" data-exp="${esc(r.ticker)}" aria-expanded="${isOpen}" aria-controls="${id}" aria-label="Details for ${esc(r.ticker)}">▾</button></td>
+  </tr>${isOpen?`<tr class="sub" id="${id}"><td colspan="17">${detail(r)}</td></tr>`:''}`}
+
+function cardHTML(r){
+  const rh=RH[r.rh]||RH.check,isOpen=open.has(r.ticker);
+  return `<article class="card${r.hot?' hot':''}" data-t="${esc(r.ticker)}">
+   <div class="r1"><button class="star" data-star="${esc(r.ticker)}" aria-pressed="${starred(r.ticker)}" aria-label="Star ${esc(r.ticker)}">${starred(r.ticker)?'★':'☆'}</button>
+    <div class="grow"><span class="tk tkn">${esc(r.ticker)}</span>${r.hot?'<span class="hotb">HOT</span>':''} <span class="tag t${r.tier}">${r.tier==='X'?'Avoid':r.tier}</span><span class="nm" style="max-width:none">${esc(r.name)}</span></div>
+    <div style="text-align:right"><div class="price num">${fP(r.price)}</div>${pct(r.chg_pct)}</div></div>
+   <div style="margin-top:8px">${spark(r.spark,r.vspark,true)}</div>
+   <div class="r2"><div><em class="lb">Setup</em>${score(r)}</div><div><em class="lb">5D</em>${pct(r.chg_5d)}</div><div><em class="lb">Rel vol</em><b class="num">${fX(r.rel_vol)}</b></div>
+    <div><em class="lb">Mkt cap</em><span class="num">${fCap(r.market_cap)}</span></div><div><em class="lb">Float</em><span class="num">${fSh(r.float_shares||r.shares)}</span></div><div><em class="lb">Short</em>${siInd(r)}</div></div>
+   <div class="small">${r.next?`<b>${dm(r.next)}</b> ${cd(r.days_to_next)} ${esc(r.next_label||'')}`:'<span class="mute">No dated catalyst</span>'} · <span class="rh ${rh[0]}">${rh[1]}</span>${r.filings.length?` · <span class="fcount${r.newFilings?' new':''}">${r.filings.length} filing${r.filings.length>1?'s':''}</span>`:''}</div>
+   <p class="why">${esc(firstSentence(r.why))}</p>
+   <button class="btn" data-exp="${esc(r.ticker)}" aria-expanded="${isOpen}">${isOpen?'Hide details':'Details, filings & notes'}</button>
+   ${isOpen?detail(r):''}</article>`}
+
+const mq=matchMedia('(max-width:700px)');
 function render(){
-  const tb=$('#t tbody');let list=rows.filter(r=>tier==='all'||r.tier===tier);
-  if(sortK)list=[...list].sort((a,b)=>{const x=a[sortK],y=b[sortK];
-    if(typeof x==='number'||typeof y==='number')return((x??-1e18)-(y??-1e18))*dir;return String(x).localeCompare(String(y))*dir});
-  tb.innerHTML=list.map(r=>`<tr>
-    <td><span class="tk">${esc(r.ticker)}</span>${r.hot?' <span class="hot" title="Big move or volume today">HOT</span>':''}<br><span class="mute">${esc(r.name)}</span></td>
-    <td><span class="tag t${r.tier}">${r.tier==='X'?'Avoid':r.tier}</span></td>
-    <td>${spark(r.spark)}</td>
-    <td class="num">${fmtPrice(r.price)}</td><td class="num">${fmtPct(r.chg_pct)}</td><td class="num">${fmtPct(r.chg_5d)}</td>
-    <td class="num">${fmtX(r.rel_vol)}</td><td class="num">${fmtCap(r.market_cap)}</td><td class="num">${fmtX(r.hi_mult)}</td>
-    <td><span class="rh ${r.rh}">${RH[r.rh]||'Check'}</span></td>
-    <td class="txt">${esc(r.why)}${(r.filings||[]).length?'<br>'+r.filings.map(f=>`<a class="fl" href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.form)} ${dmy(f.date).slice(0,5)}</a>`).join(''):''}</td>
-    <td class="txt">${esc(r.risk)}</td><td>${esc(r.trigger)}</td></tr>`).join('');
+  const list=filtered();
+  $('#count').textContent=`Showing ${list.length} of ${ROWS.length}`;
+  $('#reset').hidden=!(S.tiers.length||S.flt.length||query);
+  const empty=`<div class="empty">Nothing matches these filters.${S.flt.includes('mine')&&!S.stars.length?' Star a ticker (☆) to build your list.':''} <button class="btn" data-reset>Reset filters</button></div>`;
+  if(mq.matches){$('#cards').innerHTML=list.length?list.map(cardHTML).join(''):empty}
+  else{$('#t tbody').innerHTML=list.length?list.map(rowHTML).join(''):`<tr><td colspan="17">${empty}</td></tr>`}
+  $$('#t th[data-k]').forEach(th=>th.setAttribute('aria-sort',th.dataset.k===S.sort.k?(S.sort.d>0?'ascending':'descending'):'none'));
+}
+mq.addEventListener('change',render);
+
+function chips(){
+  $('#tiers').innerHTML=Object.entries(WL.tiers).map(([k,v])=>`<button class="chip" data-tier="${k}" aria-pressed="${S.tiers.includes(k)}"><span class="k">${k==='X'?'✕':k}</span>${esc(v)}</button>`).join('');
+  $('#flt').innerHTML=FILTERS.map(f=>`<button class="chip" data-flt="${f[0]}" aria-pressed="${S.flt.includes(f[0])}">${f[1]}</button>`).join('');
 }
 
-async function load(){
-  const bust='?v='+Date.now();
-  const [wl,live]=await Promise.all([
-    fetch('data/watchlist.json'+bust).then(r=>r.json()),
-    fetch('data/live.json'+bust).then(r=>r.ok?r.json():{}).catch(()=>({}))]);
-  const st=live.stocks||{},fi=live.filings||{};
-  rows=wl.stocks.map(s=>{const q=st[s.ticker]||{};const price=q.price??null;
-    const hot=(q.chg_pct!=null&&Math.abs(q.chg_pct)>=20)||(q.rel_vol!=null&&q.rel_vol>=5);
-    return{...s,...q,price,hi_mult:price&&q.year_high?q.year_high/price:null,filings:fi[s.ticker]||[],hot}});
+// ---------- events (delegated; all controls are real buttons, so keyboard works)
+document.addEventListener('click',e=>{
+  const t=e.target;let b;
+  if(b=t.closest('[data-star]')){const k=b.dataset.star;S.stars=starred(k)?S.stars.filter(x=>x!==k):[...S.stars,k];if(starred(k)&&S.alerts[k]===undefined)S.alerts[k]=true;save();render();return}
+  if(b=t.closest('[data-exp]')){const k=b.dataset.exp;open.has(k)?open.delete(k):open.add(k);render();const nb=document.querySelector(`[data-exp="${CSS.escape(k)}"]`);nb&&nb.focus();return}
+  if(b=t.closest('[data-tier]')){const k=b.dataset.tier;S.tiers=S.tiers.includes(k)?S.tiers.filter(x=>x!==k):[...S.tiers,k];save();chips();render();return}
+  if(b=t.closest('[data-flt]')){const k=b.dataset.flt;S.flt=S.flt.includes(k)?S.flt.filter(x=>x!==k):[...S.flt,k];save();chips();render();return}
+  if(t.closest('[data-reset]')||t.closest('#reset')){S.tiers=[];S.flt=[];query='';$('#q').value='';save();chips();render();return}
+  if(b=t.closest('th[data-k] button')){const k=b.parentElement.dataset.k;S.sort=S.sort.k===k?{k,d:-S.sort.d}:{k,d:['ticker','tier','days_to_next'].includes(k)?1:-1};save();render();return}
+  if(t.closest('[data-markseen]')){ROWS.forEach(r=>{S.seen[r.ticker]=r.filings.map(f=>f.id||f.url)});save();build();render();alerts();return}
+  if(t.closest('[data-notify]')){if('Notification' in window)Notification.requestPermission().then(p=>{S.notify=p==='granted';save();alerts()});return}
+  const tr=t.closest('tr.main');if(tr&&!t.closest('a,button,input,textarea')){const k=tr.dataset.t;open.has(k)?open.delete(k):open.add(k);render()}
+});
+document.addEventListener('input',e=>{const n=e.target.closest('[data-note]');if(n){S.notes[n.dataset.note]=n.value;if(!n.value)delete S.notes[n.dataset.note];save()}
+  if(e.target.id==='q'){query=e.target.value;render()}});
+document.addEventListener('change',e=>{const a=e.target.closest('[data-alert]');if(a){S.alerts[a.dataset.alert]=a.checked;save();alerts()}});
+document.addEventListener('keydown',e=>{if(e.key==='/'&&!e.target.closest('input,textarea')){e.preventDefault();$('#q').focus()}
+  if(e.key==='Escape'&&e.target.id==='q'){e.target.value='';query='';render()}});
 
-  // filters
-  const f=$('#f');f.innerHTML=`<button class="on" data-t="all">All</button>`+Object.entries(wl.tiers).map(([k,v])=>`<button data-t="${k}">${k==='X'?'':k+' · '}${esc(v)}</button>`).join('');
-  f.onclick=e=>{const b=e.target.closest('button');if(!b)return;tier=b.dataset.t;f.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));render()};
-  document.querySelectorAll('#t th.s').forEach(th=>th.onclick=()=>{const k=th.dataset.k;dir=sortK===k?-dir:(['ticker','tier'].includes(k)?1:-1);sortK=k;render()});
+// ---------- filing alerts
+let notified=new Set();
+function alerts(){
+  const watched=ROWS.filter(r=>S.alerts[r.ticker]&&r.newFilings>0);
+  const bar=$('#alertbar');
+  if(!watched.length){bar.classList.remove('on');bar.innerHTML='';return}
+  const list=watched.map(r=>`<b class="tk">${esc(r.ticker)}</b> (${r.filings.filter(f=>!(S.seen[r.ticker]||[]).includes(f.id||f.url)).map(f=>esc(f.form)).join(', ')})`).join(' · ');
+  bar.innerHTML=`<span>New dilution filings on your alerts since you last marked them seen: ${list}</span><button class="btn" data-markseen>Mark all seen</button>${('Notification' in window)&&Notification.permission!=='granted'?'<button class="btn" data-notify>Browser notifications</button>':''}`;
+  bar.classList.add('on');
+  if(S.notify&&('Notification' in window)&&Notification.permission==='granted')watched.forEach(r=>{const k=r.ticker+':'+r.filings.length;if(!notified.has(k)){notified.add(k);try{new Notification(`${r.ticker}: new SEC filing`,{body:r.filings.map(f=>f.form+' '+dm(f.date)).slice(0,3).join(', '),icon:'favicon-32.png'})}catch(e){}}});
+}
 
-  // calendar: hide past events
+// ---------- static sections
+function calendar(){
   const today=new Date().toISOString().slice(0,10);
-  const cal=(wl.calendar||[]).filter(c=>c.date>=today);
-  $('#cal').innerHTML=cal.length?cal.map(c=>`<span class="d">${dmy(c.date)}</span><span>${esc(c.text)}</span>`).join(''):'<span class="mute">No upcoming dated events — time to research new ones.</span>';
-
-  // movers
-  const onList=new Set(wl.stocks.map(s=>s.ticker));
-  const mv=live.movers||[];
-  $('#m tbody').innerHTML=mv.length?mv.map(m=>`<tr><td><span class="tk">${esc(m.ticker)}</span>${onList.has(m.ticker)?' <span class="mute">★ on list</span>':''}</td>
-    <td>${esc(m.name)}</td><td class="num">${fmtPrice(m.price)}</td><td class="num">${fmtPct(m.chg_pct)}</td>
-    <td class="num">${fmtX(m.rel_vol)}</td><td class="num">${fmtCap(m.market_cap)}</td>
-    <td>${(m.flags||[]).map(x=>`<span class="fl">${esc(x)}</span>`).join('')||'<span class="mute">none</span>'}</td></tr>`).join('')
-    :'<tr><td colspan="7" class="mute">No qualifying movers in the last scan (or markets closed).</td></tr>';
-
-  // freshness
-  if(live.updated_at){const d=new Date(live.updated_at);
-    const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).formatToParts(d);
-    const g=t=>parts.find(p=>p.type===t).value;
-    $('#upd').textContent=`Data updated ${g('day')} ${g('month')} ${g('year')}, ${g('hour')}:${g('minute')} London`;
-    if(Date.now()-d>36*3600e3)$('#dot').classList.add('stale');
-  } else {$('#upd').textContent='Live data not generated yet — showing notes only';$('#dot').classList.add('stale')}
-  if((live.errors||[]).length)$('#errs').textContent=`${live.errors.length} data warnings in the last run (some tickers may be missing prices).`;
-  render();
+  const ev=(WL.calendar||[]).filter(c=>c.date>=today).sort((a,b)=>a.date.localeCompare(b.date));
+  $('#cal').innerHTML=ev.length?ev.map(c=>`<div class="ev"><span class="num mono">${dmy(c.date)}</span><span class="cdw">${cd(daysTo(c.date))}</span><span>${esc(c.text)}</span></div>`).join('')
+    :'<div class="empty">No dated events left on the calendar. Time to research new ones.</div>';
 }
-load().catch(e=>{$('#upd').textContent='Could not load data: '+e.message});
+function track(){
+  $('#track').innerHTML=(WL.track_record||[]).map(t=>{const ch=t.before&&t.after?(t.after/t.before-1)*100:null;
+    return `<div><div class="h"><span><b class="tk">${esc(t.ticker)}</b> <span class="mute small">${dmy(t.date)}</span></span>${pct(ch)}</div>
+    <div>${esc(t.event)}</div><div class="mute small" style="margin:4px 0">${fP(t.before)} (${esc(t.before_note)}) → ${esc(t.peak_note)} → ${fP(t.after)} on ${dmy(t.after_date)}</div>
+    <div class="small">${esc(t.lesson)}</div></div>`}).join('')||'<div class="empty">No entries yet.</div>';
+}
+function movers(){
+  const on=new Set(WL.stocks.map(s=>s.ticker)),mv=LIVE?.movers||[];
+  const h=new Date().getUTCHours(),wd=new Date().getUTCDay(),closed=wd===0||wd===6||h<9;
+  $('#mv tbody').innerHTML=mv.length?mv.map(m=>{const hm=m.price&&m.year_high?m.year_high/m.price:null;
+    return `<tr><td><span class="tk tkn">${esc(m.ticker)}</span>${on.has(m.ticker)?' <span class="mute small">· on list</span>':''}</td><td class="small">${esc(m.name)}</td>
+    <td class="r num">${fP(m.price)}</td><td class="r">${pct(m.chg_pct)}</td><td class="r num">${fX(m.rel_vol)}</td><td class="r num">${fCap(m.market_cap)}</td>
+    <td class="r num" style="${(hm||0)>50?'color:var(--x);font-weight:600':''}">${fX(hm)}</td>
+    <td>${(m.flags||[]).map(x=>`<span class="fl">${esc(x)}</span>`).join('')||'<span class="mute small">none</span>'}</td>
+    <td class="small"><a href="https://finance.yahoo.com/quote/${encodeURIComponent(m.ticker)}" target="_blank" rel="noopener">Yahoo</a> · <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${encodeURIComponent(m.ticker)}&type=&dateb=&owner=include&count=40" target="_blank" rel="noopener">EDGAR</a></td></tr>`}).join('')
+    :`<tr><td colspan="9"><div class="empty">${closed?'Markets are closed — the scan fills up once US pre-market trading starts (09:00 UK).':'Nothing up 15%+ on 1M+ shares in the last scan. A quiet tape is information too.'}</div></td></tr>`;
+}
+function freshness(){
+  if(!LIVE?.updated_at){$('#upd').textContent='Live data not generated yet — showing notes only';$('#dot').classList.add('stale');return}
+  const d=new Date(LIVE.updated_at);const f=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).formatToParts(d);
+  const g=t=>f.find(p=>p.type===t).value;const age=Math.round((Date.now()-d)/6e4);
+  $('#upd').textContent=`Data ${g('day')} ${g('month')} ${g('year')}, ${g('hour')}:${g('minute')} London (${age<60?age+' min':Math.round(age/60)+' h'} ago)`;
+  $('#dot').classList.toggle('stale',Date.now()-d>36*36e5);$('#next-run').textContent='Refreshes every 30 min on weekdays';
+  const errs=LIVE.errors||[];$('#errs').textContent=errs.length?`${errs.length} data warning${errs.length>1?'s':''} in the last run — some fields may be blank.`:'';
+}
+
+async function load(first){
+  const bust='?v='+Date.now();
+  const [wl,live]=await Promise.all([fetch('data/watchlist.json'+bust).then(r=>r.json()),fetch('data/live.json'+bust).then(r=>r.ok?r.json():null).catch(()=>null)]);
+  WL=wl;LIVE=live;if(wl.about)$('#about').textContent=wl.about;
+  build();if(first)chips();render();calendar();track();movers();freshness();alerts();
+}
+load(true).catch(e=>{$('#upd').textContent='Could not load data: '+e.message});
+setInterval(()=>{if(!document.hidden)load(false).catch(()=>{})},5*60e3);
+setInterval(freshness,60e3);
+})();
 </script>
 </body>
 </html>
