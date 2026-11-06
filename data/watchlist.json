@@ -92,7 +92,7 @@
      "why": "Q3 beat with raised sales guidance — turnaround backed by results.", "risk": "Already jumped; heavy debt.", "trigger": "Follow-through"},
     {"ticker": "SOUN", "name": "SoundHound AI", "tier": "D", "rh": "check",
      "why": "~30% short interest; squeezes when AI sentiment turns.", "risk": "Hit hard by AI sell-off.", "trigger": "Results, AI mood"},
-    {"ticker": "FREY", "name": "FREYR / T1 Energy", "tier": "D", "rh": "check",
+    {"ticker": "TE", "name": "T1 Energy (ex-FREYR)", "tier": "D", "rh": "check",
      "why": "US solar/battery manufacturing; ~18× normal volume this week.", "risk": "Heavy capex.", "trigger": "Policy, results"},
     {"ticker": "JBLU", "name": "JetBlue", "tier": "D", "rh": "check",
      "why": "Liquid sub-$5 airline; moves on oil and deal talk.", "risk": "Large debt load.", "trigger": "Oil, deal headlines"},

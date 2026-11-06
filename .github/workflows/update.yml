@@ -25,9 +25,9 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -36,6 +36,8 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Fetch prices, filings and movers
+        env:
+          SEC_CONTACT: ${{ secrets.SEC_CONTACT }}
         run: python scripts/update.py
 
       - name: Build site
@@ -45,7 +47,7 @@ jobs:
           cp data/watchlist.json data/live.json _site/data/
           [ -f CNAME ] && cp CNAME _site/ || true
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: _site
 

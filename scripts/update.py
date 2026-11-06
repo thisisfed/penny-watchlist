@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -20,8 +21,10 @@ ROOT = Path(__file__).resolve().parent.parent
 WATCHLIST = ROOT / "data" / "watchlist.json"
 OUT = ROOT / "data" / "live.json"
 
-# SEC asks automated clients to identify themselves; this points at the public repo.
-SEC_UA = "penny-watchlist/1.0 (+https://github.com/thisisfed/penny-watchlist)"
+# SEC requires automated clients to send a contact email in the User-Agent.
+# Set it as the repository secret SEC_CONTACT (Settings → Secrets → Actions); without it, filings are skipped.
+SEC_CONTACT = os.environ.get("SEC_CONTACT", "").strip()
+SEC_UA = f"penny-watchlist {SEC_CONTACT}"
 DILUTION_FORMS = ("S-1", "S-3", "F-1", "F-3", "424B", "S-1/A", "S-3/A", "F-1/A", "F-3/A", "EFFECT")
 FILING_LOOKBACK_DAYS = 30
 US_EXCHANGES = ["NMS", "NGM", "NCM", "NYQ", "ASE", "PCX"]  # Nasdaq tiers, NYSE, NYSE American, Arca
@@ -106,10 +109,15 @@ def fetch_prices(tickers: list[str], errors: list[str]) -> dict:
 def fetch_filings(tickers: list[str], errors: list[str]) -> dict:
     import requests
 
+    if not SEC_CONTACT:
+        errors.append("SEC filings skipped: add a SEC_CONTACT repository secret (an email) to enable them")
+        return {}
     s = requests.Session()
     s.headers.update({"User-Agent": SEC_UA, "Accept-Encoding": "gzip, deflate"})
     try:
-        m = s.get("https://www.sec.gov/files/company_tickers.json", timeout=30).json()
+        r0 = s.get("https://www.sec.gov/files/company_tickers.json", timeout=30)
+        r0.raise_for_status()
+        m = r0.json()
         cik_by_ticker = {v["ticker"].upper(): int(v["cik_str"]) for v in m.values()}
     except Exception as e:  # noqa: BLE001
         errors.append(f"SEC ticker map failed: {e}")
