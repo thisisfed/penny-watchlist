@@ -52,7 +52,7 @@ def fetch_prices(tickers: list[str], errors: list[str]) -> dict:
     try:
         hist = yf.download(
             tickers, period="3mo", interval="1d", group_by="ticker",
-            auto_adjust=False, progress=False, threads=True,
+            auto_adjust=False, progress=False, threads=False,
         )
     except Exception as e:  # noqa: BLE001
         errors.append(f"history download failed: {e}")
@@ -257,6 +257,10 @@ def main():
     print(f"wrote {OUT.name}: {ok}/{len(tickers)} priced, {len(movers)} movers, {len(errors)} errors")
     for e in errors[:10]:
         print("  !", e)
+    for t, v in list(prices.items())[:8]:
+        print(f"  {t:6} ${v.get('price')}  day {v.get('chg_pct') and round(v['chg_pct'], 1)}%  cap {v.get('market_cap')}")
+    print("  filings:", {k: [f["form"] for f in v] for k, v in filings.items() if v})
+    print("  movers:", [(m["ticker"], m["price"], round(m["chg_pct"] or 0)) for m in movers[:8]])
     if ok == 0 and "--mock" not in sys.argv:
         sys.exit("no prices fetched — keeping previous deploy")
 
