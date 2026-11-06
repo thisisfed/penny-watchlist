@@ -11,4 +11,6 @@ An auto-updating watchlist of sub-$5 US exchange-listed stocks (the kind tradabl
 
 Run locally: `pip install -r requirements.txt && python scripts/update.py`, then serve the folder (`python -m http.server`).
 
+Live at https://squeeze.thisisfed.xyz
+
 Not investment advice.
