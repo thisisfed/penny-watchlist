@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Penny Stock Watchlist — Robinhood UK</title>
+<meta name="description" content="Auto-updating watchlist of sub-$5 US-listed stocks with catalysts, dilution flags and a daily movers scan. Not investment advice.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f6f5f1;--card:#fff;--ink:#16161a;--mute:#6b6a70;--line:#e4e2dc;--a:#0f766e;--b:#7c3aed;--c:#b45309;--d:#475569;--x:#b91c1c;--up:#15803d;--down:#b91c1c}
+@media (prefers-color-scheme:dark){:root{--bg:#121214;--card:#1b1b1f;--ink:#ececf0;--mute:#9a99a2;--line:#2c2c33;--a:#2dd4bf;--b:#a78bfa;--c:#f59e0b;--d:#94a3b8;--x:#f87171;--up:#4ade80;--down:#f87171}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Inter,system-ui,sans-serif}
+a{color:inherit}
+.wrap{max-width:1280px;margin:0 auto;padding:28px 18px 60px}
+h1{font-size:26px;margin:0 0 4px;letter-spacing:-.02em}h2{font-size:17px;margin:32px 0 10px}
+.sub{color:var(--mute);margin:0 0 18px}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--mute)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--up)}.dot.stale{background:var(--c)}
+.note{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--x);border-radius:10px;padding:14px 16px;margin:14px 0 18px;font-size:14px}
+.note b{color:var(--x)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card h3{margin:0 0 6px;font-size:14px}.card p{margin:0;color:var(--mute);font-size:13.5px}
+.cal{display:grid;grid-template-columns:96px 1fr;gap:6px 14px;font-size:13.5px}
+.cal .d{font-family:'JetBrains Mono',monospace;white-space:nowrap}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px}
+.filters button{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
+.filters button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.tbl{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%}
+#t{min-width:1180px}#m{min-width:820px}
+th,td{text-align:left;padding:9px 11px;border-bottom:1px solid var(--line);vertical-align:top;font-size:13.5px}
+th{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);white-space:nowrap}
+th.s{cursor:pointer;user-select:none}th.s:hover{color:var(--ink)}
+tr:last-child td{border-bottom:0}
+.tk{font-family:'JetBrains Mono',monospace;font-weight:500}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;color:#fff;white-space:nowrap}
+.tA{background:var(--a)}.tB{background:var(--b)}.tC{background:var(--c)}.tD{background:var(--d)}.tX{background:var(--x)}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+th.num{text-align:right}
+.up{color:var(--up)}.down{color:var(--down)}
+.mute{color:var(--mute);font-size:12.5px}
+.rh{font-size:12px;font-weight:600;white-space:nowrap}.rh.ok{color:var(--up)}.rh.no{color:var(--x)}.rh.check{color:var(--mute)}
+.fl{display:inline-block;font-size:11px;font-weight:600;padding:1px 6px;border-radius:5px;border:1px solid var(--x);color:var(--x);margin:0 4px 3px 0;text-decoration:none;white-space:nowrap}
+.hot{display:inline-block;font-size:11px;font-weight:700;padding:1px 6px;border-radius:5px;background:var(--c);color:#fff}
+.txt{min-width:220px;max-width:340px}
+svg.sp{display:block}
+ul{margin:6px 0 0;padding-left:18px}li{margin:3px 0}
+footer{margin-top:28px;color:var(--mute);font-size:12.5px}
+.err{color:var(--c);font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Penny Stock Watchlist</h1>
+<p class="sub">US-listed names from $0.03 to $5 with a visible reason they could move hard — prices, volume and dilution filings refresh automatically.</p>
+<span class="live"><span class="dot" id="dot"></span><span id="upd">Loading…</span></span>
+
+<div class="note"><b>Read this first.</b> Robinhood UK only offers US <i>exchange-listed</i> shares, never OTC, so true micropennies can't be bought there, and availability doesn't follow an obvious rule: check every ticker in the app. These are setups to watch, not buy calls. At this price level most explosive moves give it all back within days, and many of these companies fund themselves by selling stock into exactly those spikes. Prices are delayed. Not investment advice.</div>
+
+<h2>What drives explosive moves at this price</h2>
+<div class="grid">
+<div class="card"><h3>Dated catalyst</h3><p>FDA decision, results, investor day. INO is the case study: FDA approval on 30 10 2026, roughly 3× in a day, then it cooled.</p></div>
+<div class="card"><h3>Low float after a reverse split</h3><p>A 1-for-30 split can leave about 1M shares in circulation, so any news moves the price violently — and fresh share sales usually follow.</p></div>
+<div class="card"><h3>Crowded short</h3><p>High short interest on a small float. Good news forces shorts to buy back: the squeeze.</p></div>
+<div class="card"><h3>The traps</h3><p>The red “filing” badges below link to recent SEC filings (S-1, S-3, F-1, 424B…) that usually mean new shares are coming.</p></div>
+</div>
+
+<h2>Calendar</h2>
+<div class="card"><div class="cal" id="cal"></div></div>
+
+<h2>The watchlist</h2>
+<div class="filters" id="f"></div>
+<div class="tbl"><table id="t">
+<thead><tr>
+<th class="s" data-k="ticker">Ticker</th><th class="s" data-k="tier">Tier</th><th>30 days</th>
+<th class="s num" data-k="price">Price</th><th class="s num" data-k="chg_pct">Day</th><th class="s num" data-k="chg_5d">5 days</th>
+<th class="s num" data-k="rel_vol">Rel. vol</th><th class="s num" data-k="market_cap">Mkt cap</th><th class="s num" data-k="hi_mult">52w high ÷ price</th>
+<th>RH UK</th><th>Why watch</th><th>Key risk</th><th>Next trigger</th>
+</tr></thead><tbody></tbody></table></div>
+<p class="mute">Rel. vol = today's volume ÷ 20-day average. A 52-week high far above the price usually means repeated collapses or reverse splits.</p>
+
+<h2>Today's sub-$5 movers <span class="mute">(automatic scan: US exchanges, up 15%+ on 1M+ shares)</span></h2>
+<div class="tbl"><table id="m">
+<thead><tr><th>Ticker</th><th>Name</th><th class="num">Price</th><th class="num">Day</th><th class="num">Rel. vol</th><th class="num">Mkt cap</th><th>Red flags</th></tr></thead>
+<tbody></tbody></table></div>
+<p class="mute">Not curated: this is raw momentum. Most of these are pumps. Use it to spot names worth researching, then add them to <span class="tk">data/watchlist.json</span>.</p>
+
+<h2>If you trade any of these</h2>
+<div class="card"><ul>
+<li>Use <b>limit orders</b> only. Spreads under $1 can be 5–10%.</li>
+<li>Size each position as money you'd accept losing entirely. A common rule is no more than 1–2% of the portfolio per name.</li>
+<li>Click the red filing badges before buying: a fresh 424B or S-1 means shares are about to be sold.</li>
+<li>Around reverse splits, trading may pause on the effective date.</li>
+</ul></div>
+
+<p class="err" id="errs"></p>
+<footer>Data: Yahoo Finance (delayed) and SEC EDGAR, refreshed every 30 minutes on US trading days by GitHub Actions. Notes are hand-written and may be out of date. Not financial advice. <a href="https://github.com/thisisfed/penny-watchlist">Source on GitHub</a>.</footer>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const pad=n=>String(n).padStart(2,'0');
+const dmy=iso=>{const [y,m,d]=iso.slice(0,10).split('-');return `${d} ${m} ${y}`};
+const fmtPrice=p=>p==null?'—':'$'+(p<1?p.toFixed(4).replace(/0+$/,'').replace(/\.$/,''):p.toFixed(2));
+const fmtPct=p=>p==null?'—':`<span class="${p>=0?'up':'down'}">${p>=0?'+':''}${p.toFixed(1)}%</span>`;
+const fmtCap=c=>c==null?'—':c>=1e9?'$'+(c/1e9).toFixed(2)+'B':c>=1e6?'$'+(c/1e6).toFixed(1)+'M':'$'+(c/1e3).toFixed(0)+'K';
+const fmtX=x=>x==null?'—':x.toFixed(1)+'×';
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const RH={ok:'Reported OK',no:'Not tradable',check:'Check'};
+
+function spark(v){
+  v=(v||[]).filter(x=>x!=null);if(v.length<2)return '';
+  const w=90,h=26,mn=Math.min(...v),mx=Math.max(...v),r=mx-mn||1;
+  const pts=v.map((y,i)=>`${(i/(v.length-1)*w).toFixed(1)},${(h-2-(y-mn)/r*(h-4)).toFixed(1)}`).join(' ');
+  const col=v[v.length-1]>=v[0]?'var(--up)':'var(--down)';
+  return `<svg class="sp" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline fill="none" stroke="${col}" stroke-width="1.5" points="${pts}"/></svg>`;
+}
+
+let rows=[],tier='all',sortK=null,dir=1;
+function render(){
+  const tb=$('#t tbody');let list=rows.filter(r=>tier==='all'||r.tier===tier);
+  if(sortK)list=[...list].sort((a,b)=>{const x=a[sortK],y=b[sortK];
+    if(typeof x==='number'||typeof y==='number')return((x??-1e18)-(y??-1e18))*dir;return String(x).localeCompare(String(y))*dir});
+  tb.innerHTML=list.map(r=>`<tr>
+    <td><span class="tk">${esc(r.ticker)}</span>${r.hot?' <span class="hot" title="Big move or volume today">HOT</span>':''}<br><span class="mute">${esc(r.name)}</span></td>
+    <td><span class="tag t${r.tier}">${r.tier==='X'?'Avoid':r.tier}</span></td>
+    <td>${spark(r.spark)}</td>
+    <td class="num">${fmtPrice(r.price)}</td><td class="num">${fmtPct(r.chg_pct)}</td><td class="num">${fmtPct(r.chg_5d)}</td>
+    <td class="num">${fmtX(r.rel_vol)}</td><td class="num">${fmtCap(r.market_cap)}</td><td class="num">${fmtX(r.hi_mult)}</td>
+    <td><span class="rh ${r.rh}">${RH[r.rh]||'Check'}</span></td>
+    <td class="txt">${esc(r.why)}${(r.filings||[]).length?'<br>'+r.filings.map(f=>`<a class="fl" href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.form)} ${dmy(f.date).slice(0,5)}</a>`).join(''):''}</td>
+    <td class="txt">${esc(r.risk)}</td><td>${esc(r.trigger)}</td></tr>`).join('');
+}
+
+async function load(){
+  const bust='?v='+Date.now();
+  const [wl,live]=await Promise.all([
+    fetch('data/watchlist.json'+bust).then(r=>r.json()),
+    fetch('data/live.json'+bust).then(r=>r.ok?r.json():{}).catch(()=>({}))]);
+  const st=live.stocks||{},fi=live.filings||{};
+  rows=wl.stocks.map(s=>{const q=st[s.ticker]||{};const price=q.price??null;
+    const hot=(q.chg_pct!=null&&Math.abs(q.chg_pct)>=20)||(q.rel_vol!=null&&q.rel_vol>=5);
+    return{...s,...q,price,hi_mult:price&&q.year_high?q.year_high/price:null,filings:fi[s.ticker]||[],hot}});
+
+  // filters
+  const f=$('#f');f.innerHTML=`<button class="on" data-t="all">All</button>`+Object.entries(wl.tiers).map(([k,v])=>`<button data-t="${k}">${k==='X'?'':k+' · '}${esc(v)}</button>`).join('');
+  f.onclick=e=>{const b=e.target.closest('button');if(!b)return;tier=b.dataset.t;f.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));render()};
+  document.querySelectorAll('#t th.s').forEach(th=>th.onclick=()=>{const k=th.dataset.k;dir=sortK===k?-dir:(['ticker','tier'].includes(k)?1:-1);sortK=k;render()});
+
+  // calendar: hide past events
+  const today=new Date().toISOString().slice(0,10);
+  const cal=(wl.calendar||[]).filter(c=>c.date>=today);
+  $('#cal').innerHTML=cal.length?cal.map(c=>`<span class="d">${dmy(c.date)}</span><span>${esc(c.text)}</span>`).join(''):'<span class="mute">No upcoming dated events — time to research new ones.</span>';
+
+  // movers
+  const onList=new Set(wl.stocks.map(s=>s.ticker));
+  const mv=live.movers||[];
+  $('#m tbody').innerHTML=mv.length?mv.map(m=>`<tr><td><span class="tk">${esc(m.ticker)}</span>${onList.has(m.ticker)?' <span class="mute">★ on list</span>':''}</td>
+    <td>${esc(m.name)}</td><td class="num">${fmtPrice(m.price)}</td><td class="num">${fmtPct(m.chg_pct)}</td>
+    <td class="num">${fmtX(m.rel_vol)}</td><td class="num">${fmtCap(m.market_cap)}</td>
+    <td>${(m.flags||[]).map(x=>`<span class="fl">${esc(x)}</span>`).join('')||'<span class="mute">none</span>'}</td></tr>`).join('')
+    :'<tr><td colspan="7" class="mute">No qualifying movers in the last scan (or markets closed).</td></tr>';
+
+  // freshness
+  if(live.updated_at){const d=new Date(live.updated_at);
+    const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).formatToParts(d);
+    const g=t=>parts.find(p=>p.type===t).value;
+    $('#upd').textContent=`Data updated ${g('day')} ${g('month')} ${g('year')}, ${g('hour')}:${g('minute')} London`;
+    if(Date.now()-d>36*3600e3)$('#dot').classList.add('stale');
+  } else {$('#upd').textContent='Live data not generated yet — showing notes only';$('#dot').classList.add('stale')}
+  if((live.errors||[]).length)$('#errs').textContent=`${live.errors.length} data warnings in the last run (some tickers may be missing prices).`;
+  render();
+}
+load().catch(e=>{$('#upd').textContent='Could not load data: '+e.message});
+</script>
+</body>
+</html>
