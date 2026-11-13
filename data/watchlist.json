@@ -1,5 +1,5 @@
 {
- "_note": "Hand-curated. Edit to add/remove tickers or change notes. 'next' is an ISO date (YYYY-MM-DD) for the next dated catalyst; leave null if undated. Prices, volume, float, short interest, filings and the setup score are filled in automatically by scripts/update.py.",
+ "_note": "Hand-curated. Edit to add/remove tickers or change notes. 'next' is an ISO date (YYYY-MM-DD) for the next dated catalyst; leave null if undated. Prices, volume, float, short interest, filings and the squeeze meter are filled in automatically by scripts/update.py.",
  "tiers": {
   "A": "Dated catalyst",
   "B": "Low float after split",
@@ -354,7 +354,7 @@
    "next_label": null
   }
  ],
- "about": "Sub-$5 US-listed names with a dated or structural reason to move, shown next to the dilution evidence most penny-stock lists leave out.",
+ "about": "Sub-$5 US-listed names scored 0–10 for short-squeeze potential, shown next to the dilution evidence most penny-stock lists leave out — and graded against what actually happened next.",
  "track_record": [
   {
    "ticker": "INO",

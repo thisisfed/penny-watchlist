@@ -101,6 +101,14 @@ tr.sub td{background:var(--card2);padding:14px 16px 16px}
 .score .bar{width:44px;height:6px;border-radius:3px;background:var(--line);overflow:hidden}
 .score .bar i{display:block;height:100%;border-radius:3px}
 .score b{font-size:13px;min-width:24px}
+.cf{display:inline-block;width:8px;height:8px;border-radius:50%;border:1.5px solid var(--mute);flex:none}
+.cf.High{background:var(--up);border-color:var(--up)}.cf.Medium{background:linear-gradient(90deg,var(--c) 50%,transparent 50%);border-color:var(--c)}
+.score.Low b{color:var(--mute)}
+.meter{display:flex;gap:12px;align-items:center;margin:4px 0 8px}.meter svg{flex:none}
+.meter .big{font-size:26px;font-weight:800;line-height:1}.meter .big small{font-size:13px;font-weight:500;color:var(--mute)}
+.fg{list-style:none;margin:8px 0 0;padding:0;font-size:12px;color:var(--c)}.fg li:before{content:"⚠ "}
+.audit{width:100%;max-width:640px;border-collapse:collapse;font-size:13px}.audit th,.audit td{white-space:nowrap;padding:6px 10px 6px 0;text-align:left;border-bottom:1px solid var(--line);background:none;position:static}
+.audit td.num,.audit th.num{text-align:right}
 .rh{font-size:11.5px;font-weight:600;white-space:nowrap}.rh.ok{color:var(--up)}.rh.no{color:var(--x)}.rh.check{color:var(--mute)}
 .sum{max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--mute);font-size:12.5px}
 .exp{border:1px solid var(--line);background:var(--card);border-radius:6px;width:26px;height:26px;cursor:pointer;display:inline-grid;place-items:center;font-size:12px;color:var(--mute)}
@@ -162,7 +170,7 @@ footer{margin-top:28px;color:var(--mute);font-size:12px}
 <header class="top">
   <div>
     <h1>Squeeze <span class="mute" style="font-weight:500">— penny stock watchlist</span></h1>
-    <p class="lede" id="about">Sub-$5 US-listed names with a dated or structural reason to move, shown next to the dilution evidence most penny-stock lists leave out.</p>
+    <p class="lede" id="about">Sub-$5 US-listed names scored 0–10 for short-squeeze potential, shown next to the dilution evidence most penny-stock lists leave out — and graded against what actually happened next.</p>
     <div class="status"><span><span class="dot" id="dot"></span><span id="upd">Loading…</span></span><span id="next-run"></span></div>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -171,7 +179,7 @@ footer{margin-top:28px;color:var(--mute);font-size:12px}
   </div>
 </header>
 
-<div class="note"><b>Risk first.</b> Robinhood UK sells US exchange-listed shares only (no OTC), and availability doesn't follow a published rule: check each ticker in the app. Most moves at this price round-trip within days, and many of these companies fund themselves by selling stock into exactly those spikes. Prices are delayed. The score ranks how primed a setup is, not whether it's worth owning. Not investment advice.</div>
+<div class="note"><b>Risk first.</b> Robinhood UK sells US exchange-listed shares only (no OTC), and availability doesn't follow a published rule: check each ticker in the app. Most moves at this price round-trip within days, and many of these companies fund themselves by selling stock into exactly those spikes. Prices are delayed. The squeeze meter measures how trapped short sellers could get, not whether a company is worth owning, and its inputs lag: check the confidence dot. Not investment advice.</div>
 
 <div class="alertbar" id="alertbar" role="status"></div>
 
@@ -181,6 +189,7 @@ footer{margin-top:28px;color:var(--mute);font-size:12px}
     <div><h3>Dated catalyst</h3><p>FDA decision, results, investor day, reverse split. Known date, unknown direction. See the track record below for how recent ones played out.</p></div>
     <div><h3>Low float after a split</h3><p>A 1-for-30 split can leave ~1M shares outstanding. News moves that violently — and a shelf takedown usually follows.</p></div>
     <div><h3>Crowded short</h3><p>High short interest on a small float means good news forces covering. Short data is twice-monthly and lags.</p></div>
+    <div><h3>Reading the meter</h3><p><b>Fuel</b> (6 pts): short interest, days to cover, float. <b>Spark</b> (4 pts): shorts losing money on rising volume, short-sale volume, a dated catalyst — all scaled down when few shares are short. <b>Brakes</b>: dilution filings and collapse signs subtract. The dot is confidence: filled = all inputs fresh, half = some missing or stale, empty = mostly guesswork.</p></div>
     <div><h3>The traps</h3><p>ATMs, equity lines, resale registrations, warrants and resetting converts. Red badges link to the actual EDGAR filings (S-1, S-3, F-1, 424B, EFFECT).</p></div>
   </div>
 </details>
@@ -210,7 +219,7 @@ footer{margin-top:28px;color:var(--mute);font-size:12px}
   <th class="s2 r" scope="col" data-k="price"><button>Price</button></th>
   <th class="r" scope="col" data-k="chg_pct"><button>Day</button></th>
   <th class="r" scope="col" data-k="chg_5d"><button>5D</button></th>
-  <th scope="col" data-k="score"><button title="0–10 setup strength: catalyst proximity, float, short interest, relative volume, minus dilution filings and pump signs">Setup</button></th>
+  <th scope="col" data-k="score"><button title="0–10 squeeze meter: short interest, days to cover, float, pressure on shorts, short-sale volume and catalyst, minus dilution filings and collapse signs. Dot = data confidence.">Squeeze</button></th>
   <th scope="col">30 days · volume</th>
   <th class="r" scope="col" data-k="rel_vol"><button>Rel vol</button></th>
   <th class="r" scope="col" data-k="market_cap"><button>Mkt cap</button></th>
@@ -227,6 +236,9 @@ footer{margin-top:28px;color:var(--mute);font-size:12px}
 </table>
 </div>
 <div id="cards" aria-label="Watchlist cards"></div>
+
+<h2>Does the meter work? <span class="mute small" style="font-weight:400">automatic · every day's scores graded against the next 5 sessions</span></h2>
+<div class="box" id="audit"></div>
 
 <h2>Post-catalyst track record <span class="mute small" style="font-weight:400">manual, for calibration</span></h2>
 <div class="tr" id="track"></div>
@@ -246,7 +258,7 @@ footer{margin-top:28px;color:var(--mute);font-size:12px}
 </ul></div>
 
 <p class="mute small" id="errs"></p>
-<footer>Data: Yahoo Finance (delayed; float and short interest where available, short data reported twice monthly) and SEC EDGAR. Refreshed every 30 minutes, 09:00–23:30 UK time on weekdays, plus a weekend pass. Stars, notes and alerts stay in this browser only. Notes are hand-written and can go stale. Not financial advice. <a href="https://github.com/thisisfed/penny-watchlist">Source on GitHub</a>.</footer>
+<footer>Data: Yahoo Finance (delayed; float and short interest where available, short interest reported twice monthly), FINRA daily short-sale volume (off-exchange trades only) and SEC EDGAR. Borrow fees and share availability are not included: there is no dependable free source. Refreshed every 30 minutes, 09:00–23:30 UK time on weekdays, plus a weekend pass. Stars, notes and alerts stay in this browser only. Notes are hand-written and can go stale. Not financial advice. <a href="https://github.com/thisisfed/penny-watchlist">Source on GitHub</a>.</footer>
 </div>
 
 <script>
@@ -264,7 +276,11 @@ function pct(p){if(p==null)return '<span class="pct mute">—</span>';const a=Ma
 const scol=s=>s>=6.5?'var(--up)':s>=4.5?'var(--c)':'var(--mute)';
 function score(r){if(r.score==null)return '<span class="mute">—</span>';
   const tip=(r.parts||[]).map(p=>`${p[0]}: ${p[1]>0?'+':''}${p[1]} (${p[2]})`).join('\n');
-  return `<span class="score" title="Setup strength ${r.score}/10\n${esc(tip)}"><span class="bar"><i style="width:${r.score*10}%;background:${scol(r.score)}"></i></span><b>${r.score.toFixed(1)}</b></span>`}
+  const cf=r.conf_label||'Low';
+  return `<span class="score ${cf}" title="Squeeze ${r.score}/10 · ${cf} confidence\n${esc(tip)}"><span class="bar"><i style="width:${r.score*10}%;background:${scol(r.score)}"></i></span><b>${r.score.toFixed(1)}</b><i class="cf ${cf}" aria-label="${cf} confidence"></i></span>`}
+function gauge(v){const a=Math.PI*(1-Math.max(0,Math.min(10,v||0))/10),x=(50+38*Math.cos(a)).toFixed(1),y=(50-38*Math.sin(a)).toFixed(1);
+  const arc=(f,t,c)=>{const p=q=>[(50+42*Math.cos(Math.PI*(1-q/10))).toFixed(1),(50-42*Math.sin(Math.PI*(1-q/10))).toFixed(1)];const[a1,b1]=p(f),[a2,b2]=p(t);return `<path d="M${a1} ${b1}A42 42 0 0 1 ${a2} ${b2}" fill="none" stroke="${c}" stroke-width="7"/>`};
+  return `<svg width="96" height="56" viewBox="0 0 100 58" role="img" aria-label="Squeeze meter ${v} out of 10">${arc(0,4.5,'var(--line)')}${arc(4.5,6.5,'var(--c)')}${arc(6.5,10,'var(--up)')}<line x1="50" y1="50" x2="${x}" y2="${y}" stroke="var(--ink)" stroke-width="2.5" stroke-linecap="round"/><circle cx="50" cy="50" r="3.5" fill="var(--ink)"/></svg>`}
 function cd(days){if(days==null)return '';if(days<0)return `<span class="cd past">${-days}d ago</span>`;
   if(days===0)return '<span class="cd today">today</span>';if(days===1)return '<span class="cd soon">tomorrow</span>';
   return `<span class="cd ${days<=7?'soon':''}">in ${days}d</span>`}
@@ -301,6 +317,8 @@ const FILTERS=[
   ['mine','★ My list',r=>starred(r.ticker)],
   ['soon','Catalyst ≤ 14d',r=>r.days_to_next!=null&&r.days_to_next>=0&&r.days_to_next<=14],
   ['rhok','RH reported OK',r=>r.rh==='ok'],
+  ['sq6','Squeeze ≥ 6.5',r=>(r.score||0)>=6.5],
+  ['conf','High confidence',r=>r.conf_label==='High'],
   ['rv2','Rel vol > 2×',r=>(r.rel_vol||0)>2],
   ['cap50','Mkt cap < $50M',r=>r.market_cap!=null&&r.market_cap<5e7],
   ['dil','Dilution filing',r=>r.filings.length>0],
@@ -336,13 +354,16 @@ function filingBadges(r){return r.filings.map(f=>{const isNew=!(S.seen[r.ticker]
   return `<a class="fl${isNew?' new':''}" href="${esc(f.url)}" target="_blank" rel="noopener" title="${esc(f.form)} filed ${dmy(f.date)}">${isNew?'NEW · ':''}${esc(f.form)} ${dm(f.date)}</a>`}).join('')||'<span class="mute small">None in the last 30 days.</span>'}
 
 function detail(r){
-  const parts=(r.parts||[]).map(p=>`<tr><td>${esc(p[0])} <span class="mute">· ${esc(p[2])}</span></td><td style="color:${p[1]>0?'var(--up)':p[1]<0?'var(--down)':'var(--mute)'}">${p[1]>0?'+':''}${p[1]}</td></tr>`).join('');
+  const parts=(r.parts||[]).map(p=>`<tr><td>${esc(p[0])} <span class="mute">· ${esc(p[2])}</span></td><td style="white-space:nowrap;color:${p[1]>0?'var(--up)':p[1]<0?'var(--down)':'var(--mute)'}">${p[1]>0?'+':''}${p[1]}${p[3]?`<span class="mute" style="font-weight:400"> / ${p[3]}</span>`:''}</td></tr>`).join('');
+  const flags=(r.flags||[]).length?`<ul class="fg">${r.flags.map(f=>`<li>${esc(f)}</li>`).join('')}</ul>`:'';
   const edgar=r.cik?`https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${r.cik}&type=&dateb=&owner=include&count=40`:`https://efts.sec.gov/LATEST/search-index?q=${encodeURIComponent(r.ticker)}`;
   return `<div class="det">
     <div><h4>Why watch</h4><p>${esc(r.why)}</p><h4>Key risk</h4><p>${esc(r.risk)}</p>
       <h4>Next trigger</h4><p>${r.next?`${dmy(r.next)} — ${esc(r.next_label||'')} ${cd(r.days_to_next)}`:''}${!r.next&&r.trigger?`<span class="mute">${esc(r.trigger)}</span>`:''}</p></div>
     <div><h4>Dilution filings, last 30 days</h4><div>${filingBadges(r)}</div>
-      <h4 style="margin-top:10px">Setup score ${r.score!=null?r.score.toFixed(1):'—'} / 10</h4><table class="bd">${parts}<tr><td class="mute">Base</td><td class="mute">+1</td></tr></table>
+      <h4 style="margin-top:10px">Squeeze meter</h4>
+      <div class="meter">${gauge(r.score)}<div><div class="big">${r.score!=null?r.score.toFixed(1):'—'}<small> / 10</small></div><div class="small"><i class="cf ${r.conf_label||'Low'}"></i> ${esc(r.conf_label||'Low')} confidence${r.conf!=null?` <span class="mute">(${r.conf}% of inputs fresh)</span>`:''}</div></div></div>
+      <table class="bd">${parts}</table>${flags}
       <div class="links"><a href="https://finance.yahoo.com/quote/${encodeURIComponent(r.ticker)}" target="_blank" rel="noopener">Yahoo ↗</a><a href="${edgar}" target="_blank" rel="noopener">EDGAR ↗</a>
       <span class="mute">${r.short_as_of?`Short data as of ${dmy(r.short_as_of)}`:''}</span></div></div>
     <div><h4>30 days</h4>${spark(r.spark,r.vspark,true)}
@@ -360,7 +381,7 @@ function rowHTML(r){
   <td class="r">${pct(r.chg_pct)}</td><td class="r">${pct(r.chg_5d)}</td>
   <td>${score(r)}</td>
   <td>${spark(r.spark,r.vspark)}</td>
-  <td class="r num" style="${(r.rel_vol||0)>=2?'color:var(--hot);font-weight:700':''}">${fX(r.rel_vol)}</td>
+  <td class="r num" title="${r.rel_vol_basis==='projected'?'Projected to a full day from volume so far':r.rel_vol_basis==='previous session'?'Previous session: too early in today\'s session to judge':'Last full session vs 20-day average'}" style="${(r.rel_vol||0)>=2?'color:var(--hot);font-weight:700':''}">${fX(r.rel_vol)}${r.rel_vol_basis==='projected'?'<span class="mute">*</span>':''}</td>
   <td class="r num">${fCap(r.market_cap)}</td>
   <td class="r num">${fSh(r.float_shares||r.shares)}</td>
   <td>${siInd(r)}</td>
@@ -379,7 +400,7 @@ function cardHTML(r){
     <div class="grow"><span class="tk tkn">${esc(r.ticker)}</span>${r.hot?'<span class="hotb">HOT</span>':''} <span class="tag t${r.tier}">${r.tier==='X'?'Avoid':r.tier}</span><span class="nm" style="max-width:none">${esc(r.name)}</span></div>
     <div style="text-align:right"><div class="price num">${fP(r.price)}</div>${pct(r.chg_pct)}</div></div>
    <div style="margin-top:8px">${spark(r.spark,r.vspark,true)}</div>
-   <div class="r2"><div><em class="lb">Setup</em>${score(r)}</div><div><em class="lb">5D</em>${pct(r.chg_5d)}</div><div><em class="lb">Rel vol</em><b class="num">${fX(r.rel_vol)}</b></div>
+   <div class="r2"><div><em class="lb">Squeeze</em>${score(r)}</div><div><em class="lb">5D</em>${pct(r.chg_5d)}</div><div><em class="lb">Rel vol</em><b class="num">${fX(r.rel_vol)}</b></div>
     <div><em class="lb">Mkt cap</em><span class="num">${fCap(r.market_cap)}</span></div><div><em class="lb">Float</em><span class="num">${fSh(r.float_shares||r.shares)}</span></div><div><em class="lb">Short</em>${siInd(r)}</div></div>
    <div class="small">${r.next?`<b>${dm(r.next)}</b> ${cd(r.days_to_next)} ${esc(r.next_label||'')}`:'<span class="mute">No dated catalyst</span>'} · <span class="rh ${rh[0]}">${rh[1]}</span>${r.filings.length?` · <span class="fcount${r.newFilings?' new':''}">${r.filings.length} filing${r.filings.length>1?'s':''}</span>`:''}</div>
    <p class="why">${esc(firstSentence(r.why))}</p>
@@ -458,6 +479,18 @@ function movers(){
     <td class="small"><a href="https://finance.yahoo.com/quote/${encodeURIComponent(m.ticker)}" target="_blank" rel="noopener">Yahoo</a> · <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${encodeURIComponent(m.ticker)}&type=&dateb=&owner=include&count=40" target="_blank" rel="noopener">EDGAR</a></td></tr>`}).join('')
     :`<tr><td colspan="9"><div class="empty">${closed?'Markets are closed — the scan fills up once US pre-market trading starts (09:00 UK).':'Nothing up 15%+ on 1M+ shares in the last scan. A quiet tape is information too.'}</div></td></tr>`;
 }
+function audit(){
+  const c=LIVE?.calibration,el=$('#audit');if(!c){el.innerHTML='<span class="mute">No audit data yet.</span>';return}
+  const pc=v=>v==null?'—':(v>0?'+':'')+v+'%';
+  const rows=c.buckets.map(b=>`<tr><td><b>${esc(b.label)}</b> <span class="mute">${b.label==='High'?'6.5+':b.label==='Mid'?'4.5–6.5':'under 4.5'}</span></td><td class="num">${b.n}</td><td class="num">${b.hit==null?'—':b.hit+'%'}</td><td class="num">${pc(b.med_max)}</td><td class="num">${pc(b.med_ret)}</td></tr>`).join('');
+  const hi=c.buckets[0],lo=c.buckets[2];let verdict;
+  if(hi.n<30||lo.n<30)verdict=`Too few graded scores to judge yet (${c.settled} so far; a verdict needs 30+ in both the High and Low rows). Treat the meter as unproven until then.`;
+  else if(hi.hit>=lo.hit+10)verdict=`So far high scores have run ${c.hit_pct}%+ more often than low ones (${hi.hit}% vs ${lo.hit}%).`;
+  else verdict=`So far high scores have NOT beaten low ones (${hi.hit}% vs ${lo.hit}%). On this evidence the meter is not adding information.`;
+  el.innerHTML=`<div style="overflow-x:auto"><table class="audit"><thead><tr><th>Score that day</th><th class="num">Graded</th><th class="num">Ran ${c.hit_pct}%+</th><th class="num">Best gain</th><th class="num">After ${c.horizon}d</th></tr></thead><tbody>${rows}</tbody></table></div>
+  <p class="small" style="margin:10px 0 0"><b>${verdict}</b></p>
+  <p class="mute small" style="margin:6px 0 0">Each session's closing scores are logged once and never edited${c.since?` (model v${c.model}, since ${dmy(c.since)}, ${c.days_logged} sessions)`:''}. "Ran" = the high of the next ${c.horizon} sessions was at least ${c.hit_pct}% above that day's close; "Best gain" (median) assumes a perfect exit; "after" is the median close-to-close result, the honest one. Small sample, one watchlist, hand-picked names.</p>`;
+}
 function freshness(){
   if(!LIVE?.updated_at){$('#upd').textContent='Live data not generated yet — showing notes only';$('#dot').classList.add('stale');return}
   const d=new Date(LIVE.updated_at);const f=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).formatToParts(d);
@@ -471,7 +504,7 @@ async function load(first){
   const bust='?v='+Date.now();
   const [wl,live]=await Promise.all([fetch('data/watchlist.json'+bust).then(r=>r.json()),fetch('data/live.json'+bust).then(r=>r.ok?r.json():null).catch(()=>null)]);
   WL=wl;LIVE=live;if(wl.about)$('#about').textContent=wl.about;
-  build();if(first)chips();render();calendar();track();movers();freshness();alerts();
+  build();if(first)chips();render();calendar();track();audit();movers();freshness();alerts();
 }
 load(true).catch(e=>{$('#upd').textContent='Could not load data: '+e.message});
 setInterval(()=>{if(!document.hidden)load(false).catch(()=>{})},5*60e3);

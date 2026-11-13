@@ -4,7 +4,9 @@ Reads data/watchlist.json (hand-curated) and writes data/live.json with:
   - price, day / 5-day / 1-month change, relative volume, 30-day price + volume series (Yahoo Finance)
   - market cap, float, short interest, days to cover, next earnings date (Yahoo, where available)
   - recent SEC filings that usually mean new shares are coming (S-1, S-3, F-1, F-3, 424B, EFFECT)
-  - a 0-10 "setup strength" score with its breakdown
+  - FINRA daily short-sale volume (free Reg SHO files)
+  - a 0-10 squeeze meter with a confidence grade and its breakdown (model in scripts/squeeze.py)
+  - a self-audit: each day's scores are logged to data/state.json and graded against the next 5 sessions
   - a scan of today's big sub-$5 movers on US exchanges, with automatic red flags
 Then renders og.png (social preview) from the result.
 
@@ -23,6 +25,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 WATCHLIST = ROOT / "data" / "watchlist.json"
 OUT = ROOT / "data" / "live.json"
+STATE = ROOT / "data" / "state.json"   # committed: last-good float/short data + the score log
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import squeeze  # noqa: E402
 
 # SEC requires automated clients to send a contact email in the User-Agent.
 # Set it as the repository secret SEC_CONTACT; without it, filings are skipped.
@@ -52,35 +58,62 @@ def r4(v):
 
 
 # ---------------------------------------------------------------- prices
+def history_row(df, now: datetime) -> dict:
+    """Quote fields from one ticker's daily bars. Kept separate from the network code so it can be tested."""
+    row: dict = {}
+    df = df.dropna(subset=["Close"])
+    if not len(df):
+        return row
+    closes, vols = df["Close"], df["Volume"]
+    highs = df["High"] if "High" in df else closes
+    bar_date = df.index[-1].date()
+    row["close"] = clean(closes.iloc[-1])
+    row["prev_close"] = clean(closes.iloc[-2]) if len(closes) > 1 else None
+    row["volume"] = clean(vols.iloc[-1])
+    row["avg_vol_20d"] = clean(vols.iloc[-21:-1].mean()) if len(vols) > 2 else None
+    prev_avg = clean(vols.iloc[-22:-2].mean()) if len(vols) > 3 else None
+    prev_rv = clean(vols.iloc[-2] / prev_avg) if prev_avg else None
+    rv, basis = squeeze.live_rel_vol(row["volume"], row["avg_vol_20d"], bar_date, prev_rv, now)
+    row["rel_vol"], row["rel_vol_basis"] = clean(rv), basis
+    row["chg_5d"] = clean((closes.iloc[-1] / closes.iloc[-6] - 1) * 100) if len(closes) > 5 else None
+    row["chg_1m"] = clean((closes.iloc[-1] / closes.iloc[-22] - 1) * 100) if len(closes) > 21 else None
+    row["spark"] = [r4(c) for c in closes.iloc[-30:]]
+    row["vspark"] = [clean(v) for v in vols.iloc[-30:]]
+    row["as_of"] = bar_date.isoformat()
+    row["_series"] = [(i.strftime("%Y-%m-%d"), clean(c), clean(h)) for i, c, h in zip(df.index, closes, highs)]
+    if "Stock Splits" in df:
+        sp = df["Stock Splits"].dropna()
+        sp = sp[(sp > 0) & (sp != 1)]
+        if len(sp):
+            row["split"] = {"date": sp.index[-1].strftime("%Y-%m-%d"), "ratio": clean(sp.iloc[-1])}
+    return row
+
+
 def fetch_prices(tickers: list[str], errors: list[str]) -> dict:
     import yfinance as yf
 
+    now = datetime.now(timezone.utc)
     out: dict[str, dict] = {}
     hist = None
-    try:
-        hist = yf.download(
-            tickers, period="3mo", interval="1d", group_by="ticker",
-            auto_adjust=False, progress=False, threads=False,
-        )
-    except Exception as e:  # noqa: BLE001
-        errors.append(f"history download failed: {e}")
+    for attempt in range(2):  # Yahoo drops the odd request; one retry removes most blank runs
+        try:
+            hist = yf.download(
+                tickers, period="3mo", interval="1d", group_by="ticker",
+                auto_adjust=False, actions=True, progress=False, threads=False,
+            )
+            if hist is not None and len(hist):
+                break
+        except Exception as e:  # noqa: BLE001
+            if attempt:
+                errors.append(f"history download failed: {e}")
+            time.sleep(3)
 
     for t in tickers:
         row: dict = {}
         try:
             df = hist[t] if hist is not None and len(tickers) > 1 else hist
-            df = df.dropna(subset=["Close"]) if df is not None else None
-            if df is not None and len(df):
-                closes, vols = df["Close"], df["Volume"]
-                row["close"] = clean(closes.iloc[-1])
-                row["prev_close"] = clean(closes.iloc[-2]) if len(closes) > 1 else None
-                row["volume"] = clean(vols.iloc[-1])
-                row["avg_vol_20d"] = clean(vols.iloc[-21:-1].mean()) if len(vols) > 2 else None
-                row["chg_5d"] = clean((closes.iloc[-1] / closes.iloc[-6] - 1) * 100) if len(closes) > 5 else None
-                row["chg_1m"] = clean((closes.iloc[-1] / closes.iloc[-22] - 1) * 100) if len(closes) > 21 else None
-                row["spark"] = [r4(c) for c in closes.iloc[-30:]]
-                row["vspark"] = [clean(v) for v in vols.iloc[-30:]]
-                row["as_of"] = df.index[-1].strftime("%Y-%m-%d")
+            if df is not None:
+                row = history_row(df, now)
         except Exception as e:  # noqa: BLE001
             errors.append(f"{t}: history parse failed: {e}")
 
@@ -104,12 +137,13 @@ def fetch_prices(tickers: list[str], errors: list[str]) -> dict:
             errors.append(f"{t}: quote failed: {e}")
 
         # Float, short interest, earnings date: slower endpoint, best effort.
+        # When it fails, main() falls back to the last good values in data/state.json.
         try:
             info = tk.info or {}
             row["float_shares"] = clean(info.get("floatShares"))
-            si = clean(info.get("shortPercentOfFloat"))
-            row["short_pct"] = si * 100 if si is not None and si < 5 else si
-            row["days_to_cover"] = clean(info.get("shortRatio"))
+            row["shares_short"] = clean(info.get("sharesShort"))
+            si = clean(info.get("shortPercentOfFloat"))  # Yahoo sends a fraction (0.18 = 18%)
+            row["short_pct"] = si * 100 if si is not None and si < 3 else si
             sid = info.get("dateShortInterest")
             row["short_as_of"] = datetime.fromtimestamp(sid, timezone.utc).strftime("%Y-%m-%d") if sid else None
             ets = info.get("earningsTimestampStart") or info.get("earningsTimestamp")
@@ -127,8 +161,6 @@ def fetch_prices(tickers: list[str], errors: list[str]) -> dict:
         row["price"] = price
         if price and row.get("prev_close"):
             row["chg_pct"] = clean((price / row["prev_close"] - 1) * 100)
-        if row.get("volume") and row.get("avg_vol_20d"):
-            row["rel_vol"] = clean(row["volume"] / row["avg_vol_20d"])
         out[t] = row
     return out
 
@@ -173,67 +205,29 @@ def fetch_filings(tickers: list[str], errors: list[str]) -> dict:
     return out
 
 
-# ---------------------------------------------------------------- setup score
-def days_until(iso: str | None) -> int | None:
-    if not iso:
-        return None
-    try:
-        return (date.fromisoformat(iso) - datetime.now(timezone.utc).date()).days
-    except ValueError:
-        return None
+# ---------------------------------------------------------------- FINRA short-sale volume
+def fetch_short_volume(errors: list[str], want: int = 5) -> list[dict]:
+    """Last few FINRA Reg SHO daily short-sale volume files (off-exchange trades, all US-listed symbols)."""
+    import requests
 
-
-def setup_score(s: dict, q: dict, filings: list[dict]) -> dict:
-    """0-10 'setup strength'. Rewards a near dated catalyst, tight float, crowded short and
-    unusual volume; penalises fresh dilution filings and pump/collapse signatures.
-    Describes how primed a setup is, not whether it's a good investment."""
-    parts = []
-
-    nxt = s.get("next") or q.get("earnings_date")
-    d = days_until(nxt)
-    cat = 0.0
-    if d is not None and d >= 0:
-        cat = 3 if d <= 3 else 2.5 if d <= 7 else 2 if d <= 14 else 1 if d <= 30 else 0
-    parts.append(["Catalyst", cat, f"in {d} days" if d is not None and d >= 0 else "none dated"])
-
-    fl = q.get("float_shares") or q.get("shares")
-    fs = 0.0
-    if fl:
-        fs = 2.5 if fl < 2e6 else 2 if fl < 10e6 else 1.5 if fl < 30e6 else 0.75 if fl < 100e6 else 0
-    parts.append(["Float", fs, f"{fl/1e6:.1f}M shares" if fl else "unknown"])
-
-    si = q.get("short_pct")
-    ss = 0.0
-    if si is not None:
-        ss = 1.5 if si >= 30 else 1 if si >= 15 else 0.5 if si >= 8 else 0
-    parts.append(["Short interest", ss, f"{si:.0f}% of float" if si is not None else "n/a"])
-
-    rv = q.get("rel_vol")
-    rs = 0.0
-    if rv is not None:
-        rs = 2 if rv >= 5 else 1.25 if rv >= 2 else 0.5 if rv >= 1.2 else 0
-    parts.append(["Rel. volume", rs, f"{rv:.1f}×" if rv is not None else "n/a"])
-
-    dil = 0.0
-    for f in filings:
-        dil -= 1.0 if f["form"].startswith("424B") else 0.75
-    dil = max(dil, -3.0)
-    parts.append(["Dilution filings", dil, f"{len(filings)} in 30 days"])
-
-    pump = 0.0
-    price, hi, cap = q.get("price"), q.get("year_high"), q.get("market_cap")
-    if price and hi and hi / price > 50:
-        pump -= 1
-    if cap and cap < 5e6:
-        pump -= 0.5
-    parts.append(["Pump / collapse signs", pump, "52w high >50× or cap <$5M" if pump else "none"])
-
-    total = 1.0 + sum(p[1] for p in parts)  # small base so clean, undated names aren't all zero
-    if s.get("tier") == "X":
-        total = min(total, 2.0)
-    total = max(0.0, min(10.0, total))
-    label = s.get("next_label") if s.get("next") else ("Earnings (Yahoo est.)" if nxt else None)
-    return {"score": round(total, 1), "parts": parts, "next_date": nxt, "next_label": label, "days_to_next": d}
+    days, day, tried = [], datetime.now(squeeze.NY).date(), 0
+    s = requests.Session()
+    s.headers.update({"User-Agent": "penny-watchlist (github.com/thisisfed/penny-watchlist)"})
+    while len(days) < want and tried < 12:
+        tried += 1
+        if day.weekday() < 5:
+            try:
+                r = s.get(f"https://cdn.finra.org/equity/regsho/daily/CNMSshvol{day:%Y%m%d}.txt", timeout=30)
+                if r.status_code == 200:
+                    parsed = squeeze.parse_regsho(r.text)
+                    if len(parsed) > 1000:  # a real file lists thousands of symbols
+                        days.append(parsed)
+            except Exception as e:  # noqa: BLE001
+                errors.append(f"FINRA short volume {day}: {e}")
+        day -= timedelta(days=1)
+    if not days:
+        errors.append("FINRA short-sale volume unavailable this run")
+    return days
 
 
 # ---------------------------------------------------------------- movers scan
@@ -301,17 +295,33 @@ def scan_movers(errors: list[str]) -> list[dict]:
 def mock(tickers):
     import random
     random.seed(7)
-    prices = {}
-    for i, t in enumerate(tickers):
+    today = datetime.now(timezone.utc).date()
+    bdays = []
+    d = today
+    while len(bdays) < 64:
+        d -= timedelta(days=1)
+        if d.weekday() < 5:
+            bdays.append(d.isoformat())
+    bdays.reverse()
+    si_date = bdays[-12]
+    prices, shortvol = {}, {}
+    for t in tickers:
         p = round(random.uniform(0.03, 4.5), 4)
+        path = [p * (1 + random.uniform(-.35, .35)) for _ in bdays[:-1]] + [p]
+        fl = random.choice([1.1e6, 8e6, 4e7, None])
+        sp = random.choice([None, 4.0, 18.0, 44.0])
         prices[t] = {"price": p, "prev_close": p / (1 + random.uniform(-.3, .4)), "volume": 3e6, "avg_vol_20d": 1e6,
-                     "rel_vol": random.choice([0.4, 1.1, 2.5, 8.9]), "chg_5d": random.uniform(-35, 80),
+                     "rel_vol": random.choice([0.4, 1.1, 2.5, 8.9]), "rel_vol_basis": "full day", "chg_5d": random.uniform(-35, 80),
                      "chg_1m": 12.0, "market_cap": random.choice([3e6, 2.4e7, 1.1e8]), "year_high": p * random.choice([2, 8, 60]),
-                     "year_low": p * 0.7, "float_shares": random.choice([1.1e6, 8e6, 4e7, None]),
-                     "short_pct": random.choice([None, 4.0, 18.0, 44.0]), "days_to_cover": 2.1,
-                     "short_as_of": "2026-10-15", "spark": [r4(p * (1 + random.uniform(-.25, .25))) for _ in range(30)],
-                     "vspark": [random.uniform(1e5, 9e6) for _ in range(30)], "as_of": "2026-11-06"}
+                     "year_low": p * 0.7, "float_shares": fl, "shares": 5e7,
+                     "short_pct": sp, "shares_short": fl * sp / 100 if fl and sp else None,
+                     "short_as_of": si_date if sp is not None else None,
+                     "spark": [r4(c) for c in path[-30:]], "vspark": [random.uniform(1e5, 9e6) for _ in range(30)],
+                     "as_of": bdays[-1], "_series": [(d, r4(c), r4(c * 1.08)) for d, c in zip(bdays, path)]}
         prices[t]["chg_pct"] = (p / prices[t]["prev_close"] - 1) * 100
+        if random.random() > 0.2:
+            shortvol[t] = (random.uniform(3e5, 7e5), 1e6)
+    prices[tickers[0]]["split"] = {"date": bdays[-1], "ratio": 0.05}
     filings = {"RCT": {"cik": 2027360, "items": [{"form": "424B3", "date": "2026-10-19", "url": "https://www.sec.gov/", "id": "a1"},
                                                  {"form": "EFFECT", "date": "2026-10-29", "url": "https://www.sec.gov/", "id": "a2"}]},
                "INO": {"cik": 1055726, "items": [{"form": "424B5", "date": "2026-11-03", "url": "https://www.sec.gov/", "id": "a3"}]}}
@@ -321,7 +331,11 @@ def mock(tickers):
                "rel_vol": 9.0, "market_cap": 4.7e6, "year_high": 2.6, "exchange": "NCM"}]
     for m in movers:
         m["flags"] = red_flags(m)
-    return prices, filings, movers
+    # a fake score log so the self-audit panel has something to show
+    state = squeeze.new_state()
+    for d in bdays[-30:-6]:
+        squeeze.record_day(state, d, {t: [round(random.uniform(0, 9), 1), random.choice([45, 70, 90])] for t in tickers})
+    return prices, filings, movers, [shortvol] * 5, state
 
 
 # ---------------------------------------------------------------- OG image
@@ -347,7 +361,7 @@ def render_og(wl: dict, live: dict, path: Path) -> None:
 
     d.text((60, 48), "squeeze.thisisfed.xyz", font=font(24, mono=True), fill=mute)
     d.text((60, 84), "Penny Stock Watchlist", font=font(54, bold=True), fill=ink)
-    d.text((60, 152), "Sub-$5 setups, ranked by setup strength — with the dilution filings shown.", font=font(24), fill=mute)
+    d.text((60, 152), "Sub-$5 short-squeeze setups, scored 0–10 — with the dilution filings shown.", font=font(24), fill=mute)
 
     stocks = live["stocks"]
     names = {s["ticker"]: s for s in wl["stocks"]}
@@ -356,7 +370,7 @@ def render_og(wl: dict, live: dict, path: Path) -> None:
     y = 212
     d.line((60, y - 14, W - 60, y - 14), fill=line, width=2)
     hdr = font(18, bold=True)
-    for x, label in ((60, "TICKER"), (300, "PRICE"), (480, "DAY"), (640, "SCORE"), (800, "NEXT")):
+    for x, label in ((60, "TICKER"), (300, "PRICE"), (480, "DAY"), (640, "SQUEEZE"), (800, "NEXT")):
         d.text((x, y), label, font=hdr, fill=mute)
     y += 40
     for t in ranked:
@@ -379,26 +393,73 @@ def render_og(wl: dict, live: dict, path: Path) -> None:
     img.save(path, optimize=True)
 
 
+def load_state() -> dict:
+    try:
+        st = json.loads(STATE.read_text())
+        st.setdefault("fundamentals", {})
+        st.setdefault("days", [])
+        return st
+    except (OSError, ValueError):
+        return squeeze.new_state()
+
+
 def main():
     wl = json.loads(WATCHLIST.read_text())
     tickers = [s["ticker"] for s in wl["stocks"]]
     errors: list[str] = []
-    if "--mock" in sys.argv:
-        prices, filings, movers = mock(tickers)
+    is_mock = "--mock" in sys.argv
+    now = datetime.now(timezone.utc)
+    today, frac = squeeze.session_fraction(now)
+    if is_mock:
+        prices, filings, movers, shortvol, state = mock(tickers)
     else:
+        state = load_state()
         prices = fetch_prices(tickers, errors)
         filings = fetch_filings(tickers, errors)
+        shortvol = fetch_short_volume(errors)
         movers = scan_movers(errors)
 
+    series = {}
     for s in wl["stocks"]:
-        q = prices.setdefault(s["ticker"], {})
-        items = (filings.get(s["ticker"]) or {}).get("items", [])
-        q.update(setup_score(s, q, items))
+        t = s["ticker"]
+        q = prices.setdefault(t, {})
+        series[t] = q.pop("_series", [])
+        flags = []
+        note = squeeze.use_cache(q, state["fundamentals"].get(t), today)
+        if note:
+            flags.append(note)
+        elif q.get("float_shares") or q.get("short_pct") is not None:
+            state["fundamentals"][t] = {k: q.get(k) for k in ("float_shares", "shares_short", "short_pct", "short_as_of")}
+            state["fundamentals"][t]["saved"] = today.isoformat()
+        q.update(squeeze.short_volume_summary(shortvol, t))
+        flags += squeeze.normalise_short(q, today)
+        q["ret_since_si"] = clean(squeeze.return_since(series[t], q.get("short_as_of"), q.get("price")))
+        if q.get("rel_vol_basis") == "previous session":
+            flags.append("Relative volume is from the previous session (too early in the day)")
+        q["flags"] = flags
+        items = (filings.get(t) or {}).get("items", [])
+        q.update(squeeze.squeeze_score(s, q, items, today))
+
+    ok = sum(1 for v in prices.values() if v.get("price"))
+    if ok == 0 and not is_mock:
+        sys.exit("no prices fetched — keeping previous deploy")
+
+    # Self-audit: log each finished session once, then grade older logs against what happened next.
+    dates = [v["as_of"] for v in prices.values() if v.get("as_of")]
+    bar = max(set(dates), key=dates.count) if dates else None
+    finished = bar and (bar < today.isoformat() or frac >= 1 and now.astimezone(squeeze.NY).hour * 60 + now.astimezone(squeeze.NY).minute >= 980)
+    if finished and not is_mock:
+        squeeze.record_day(state, bar, {t: [v["score"], v["conf"]] for t, v in prices.items()
+                                        if v.get("as_of") == bar and v.get("score") is not None})
+    squeeze.settle(state, series)
+    if not is_mock:
+        STATE.write_text(json.dumps(state, separators=(",", ":"), allow_nan=False) + "\n")
 
     live = {
-        "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "source": "Yahoo Finance (delayed) · SEC EDGAR",
-        "stocks": prices, "filings": filings, "movers": movers, "errors": errors[:50],
+        "updated_at": now.isoformat(timespec="seconds"),
+        "source": "Yahoo Finance (delayed) · FINRA · SEC EDGAR",
+        "stocks": prices, "filings": filings, "movers": movers, "calibration": squeeze.calibration(state),
+        "errors": errors[:50],
     }
     OUT.write_text(json.dumps(live, indent=1, allow_nan=False))
     try:
@@ -406,18 +467,16 @@ def main():
     except Exception as e:  # noqa: BLE001
         print("  ! og image failed:", e)
 
-    ok = sum(1 for v in prices.values() if v.get("price"))
     print(f"wrote {OUT.name}: {ok}/{len(tickers)} priced, {len(movers)} movers, {len(errors)} errors")
     for e in errors[:10]:
         print("  !", e)
     top = sorted(prices.items(), key=lambda kv: kv[1].get("score") or 0, reverse=True)[:8]
     for t, v in top:
-        print(f"  {t:6} score {v.get('score')}  ${v.get('price')}  day {v.get('chg_pct') and round(v['chg_pct'], 1)}%  "
-              f"float {v.get('float_shares')}  SI {v.get('short_pct')}  next {v.get('next_date')}")
+        print(f"  {t:6} squeeze {v.get('score')} ({v.get('conf_label')})  ${v.get('price')}  "
+              f"SI {v.get('short_pct') and round(v['short_pct'], 1)}  float {v.get('float_shares')}  flags {v.get('flags')}")
     print("  filings:", {k: [f["form"] for f in v["items"]] for k, v in filings.items() if v.get("items")})
     print("  movers:", [(m["ticker"], m["price"], round(m["chg_pct"] or 0)) for m in movers[:8]])
-    if ok == 0 and "--mock" not in sys.argv:
-        sys.exit("no prices fetched — keeping previous deploy")
+    print("  audit:", live["calibration"])
 
 
 if __name__ == "__main__":
