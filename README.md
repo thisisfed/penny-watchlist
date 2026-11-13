@@ -15,7 +15,8 @@ An auto-updating watchlist of sub-$5 US exchange-listed stocks (the kind tradabl
     - spark: shorts under water on rising volume (2), short-sale volume (1), dated catalyst (1) — scaled down when few shares are short
     - brakes: dilution filings (to −3), collapse signs (to −1.5); avoid-tier names are capped at 2
     - hygiene: stale short data earns half credit, reverse splits after the short-interest date are adjusted for, disagreeing sources use the lower figure, intraday volume is projected to a full day, and a failed Yahoo fetch falls back to the last good values
-  - a self-audit: each session's scores are logged once to `data/state.json` (committed by the workflow) and graded against the next 5 sessions; the page shows the result, good or bad
+  - the **pop score**: 0–10 for the chance of a +10% run within five sessions — the stock's own 3-month habit of doing so (4), recent daily swings (2), volume (2), catalyst within days (1.5), small float (0.5), minus fresh offering prospectuses
+  - a self-audit (both scores): each session's scores are logged once to `data/state.json` (committed by the workflow) and graded against the next 5 sessions; the page shows the result, good or bad
   - a scan of the day's sub-$5 movers on US exchanges with red flags
   - a social preview image of the top setups
 - **Personal layer:** stars, notes and filing alerts live in the visitor's browser (localStorage). No accounts.

@@ -6,6 +6,7 @@ Reads data/watchlist.json (hand-curated) and writes data/live.json with:
   - recent SEC filings that usually mean new shares are coming (S-1, S-3, F-1, F-3, 424B, EFFECT)
   - FINRA daily short-sale volume (free Reg SHO files)
   - a 0-10 squeeze meter with a confidence grade and its breakdown (model in scripts/squeeze.py)
+  - a 0-10 "pop" score: how likely a +10% run is within five sessions
   - a self-audit: each day's scores are logged to data/state.json and graded against the next 5 sessions
   - a scan of today's big sub-$5 movers on US exchanges, with automatic red flags
 Then renders og.png (social preview) from the result.
@@ -334,7 +335,7 @@ def mock(tickers):
     # a fake score log so the self-audit panel has something to show
     state = squeeze.new_state()
     for d in bdays[-30:-6]:
-        squeeze.record_day(state, d, {t: [round(random.uniform(0, 9), 1), random.choice([45, 70, 90])] for t in tickers})
+        squeeze.record_day(state, d, {t: [round(random.uniform(0, 9), 1), random.choice([45, 70, 90]), round(random.uniform(0, 9), 1)] for t in tickers})
     return prices, filings, movers, [shortvol] * 5, state
 
 
@@ -439,6 +440,7 @@ def main():
         q["flags"] = flags
         items = (filings.get(t) or {}).get("items", [])
         q.update(squeeze.squeeze_score(s, q, items, today))
+        q.update(squeeze.pop_score(s, q, items, series[t], today))
 
     ok = sum(1 for v in prices.values() if v.get("price"))
     if ok == 0 and not is_mock:
@@ -449,7 +451,7 @@ def main():
     bar = max(set(dates), key=dates.count) if dates else None
     finished = bar and (bar < today.isoformat() or frac >= 1 and now.astimezone(squeeze.NY).hour * 60 + now.astimezone(squeeze.NY).minute >= 980)
     if finished and not is_mock:
-        squeeze.record_day(state, bar, {t: [v["score"], v["conf"]] for t, v in prices.items()
+        squeeze.record_day(state, bar, {t: [v["score"], v["conf"], v.get("pop") if v.get("pop_known") else None] for t, v in prices.items()
                                         if v.get("as_of") == bar and v.get("score") is not None})
     squeeze.settle(state, series)
     if not is_mock:
@@ -459,6 +461,7 @@ def main():
         "updated_at": now.isoformat(timespec="seconds"),
         "source": "Yahoo Finance (delayed) · FINRA · SEC EDGAR",
         "stocks": prices, "filings": filings, "movers": movers, "calibration": squeeze.calibration(state),
+        "pop_calibration": squeeze.calibration(state, col=2, hit=squeeze.POP_HIT),
         "errors": errors[:50],
     }
     OUT.write_text(json.dumps(live, indent=1, allow_nan=False))
@@ -473,7 +476,7 @@ def main():
     top = sorted(prices.items(), key=lambda kv: kv[1].get("score") or 0, reverse=True)[:8]
     for t, v in top:
         print(f"  {t:6} squeeze {v.get('score')} ({v.get('conf_label')})  ${v.get('price')}  "
-              f"SI {v.get('short_pct') and round(v['short_pct'], 1)}  float {v.get('float_shares')}  flags {v.get('flags')}")
+              f"pop {v.get('pop')} ({v.get('pop_rate')}% habit)  SI {v.get('short_pct') and round(v['short_pct'], 1)}  float {v.get('float_shares')}  flags {v.get('flags')}")
     print("  filings:", {k: [f["form"] for f in v["items"]] for k, v in filings.items() if v.get("items")})
     print("  movers:", [(m["ticker"], m["price"], round(m["chg_pct"] or 0)) for m in movers[:8]])
     print("  audit:", live["calibration"])

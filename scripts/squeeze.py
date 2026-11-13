@@ -237,6 +237,75 @@ def squeeze_score(s: dict, q: dict, filings: list[dict], today: date) -> dict:
     }
 
 
+# ---------------------------------------------------------------- the pop score
+POP_HIT = 10.0   # % gain within HORIZON that counts as "it popped"
+
+
+def pop_base_rate(series, horizon: int = HORIZON, thr: float = POP_HIT) -> float | None:
+    """Share of past windows (%) in which the high of the next `horizon` sessions beat the close by `thr`%."""
+    n = len(series) - horizon
+    if n < 20:
+        return None
+    hits = 0
+    for i in range(n):
+        base = series[i][1]
+        highs = [r[2] or r[1] for r in series[i + 1: i + 1 + horizon] if (r[2] or r[1])]
+        if base and highs and max(highs) / base - 1 >= thr / 100:
+            hits += 1
+    return hits / n * 100
+
+
+def avg_abs_move(series, days: int = 10) -> float | None:
+    """Average absolute daily close-to-close move (%) over the last `days` sessions."""
+    closes = [r[1] for r in series[-(days + 1):] if r[1]]
+    if len(closes) < 6:
+        return None
+    return sum(abs(b / a - 1) for a, b in zip(closes, closes[1:])) / (len(closes) - 1) * 100
+
+
+def pop_score(s: dict, q: dict, filings: list[dict], series, today: date) -> dict:
+    """0-10: how likely a +10% run is within the next five sessions.
+
+    Independent of the squeeze meter: it asks 'will it move', not 'are shorts trapped'.
+    Habit 4 (how often this stock has done it lately) · recent daily swings 2 · volume waking up 2 ·
+    catalyst within days 1.5 · small float 0.5 · minus fresh offering prospectuses.
+    """
+    parts: list[list] = []
+    rate = pop_base_rate(series)
+    parts.append(["Habit", 4 * ramp(rate, 10, 60),
+                  f"ran 10%+ in {rate:.0f}% of 5-day windows, last 3 months" if rate is not None else "too little history", 4])
+
+    swing = avg_abs_move(series)
+    parts.append(["Daily swings", 2 * ramp(swing, 2, 8),
+                  f"{swing:.1f}% average daily move, 10 days" if swing is not None else "unknown", 2])
+
+    rv, chg, chg5 = q.get("rel_vol"), q.get("chg_pct"), q.get("chg_5d")
+    rising = (chg or 0) > 0 or (chg5 or 0) > 0
+    vol = 2 * ramp(math.log(rv), math.log(1.2), math.log(5)) if rv and rv > 0 else 0.0
+    if not rising:
+        vol *= 0.5
+    parts.append(["Volume", vol, (f"{rv:.1f}× normal" + ("" if rising else ", price falling (half credit)")) if rv is not None else "unknown", 2])
+
+    d = days_until(s.get("next") or q.get("earnings_date"), today)
+    cat = 0.0
+    if d is not None and d >= 0:
+        cat = 1.5 if d <= 1 else 1.2 if d <= 3 else 1.0 if d <= 5 else 0.5 if d <= 10 else 0
+    parts.append(["Catalyst", cat, f"in {d} days" if d is not None and d >= 0 else "none dated", 1.5])
+
+    fl = q.get("float_shares") or q.get("shares")
+    parts.append(["Small float", 0.5 * ramp(math.log10(100e6 / fl), 0, math.log10(50)) if fl else 0.0,
+                  f"{fl / 1e6:.1f}M shares" if fl else "unknown", 0.5])
+
+    recent = [f for f in filings if f["form"].startswith("424B") and (days_until(f.get("date"), today) or -99) >= -7]
+    parts.append(["Shares being sold", max(-0.75 * len(recent), -1.5), f"{len(recent)} offering prospectus(es) in 7 days", 0])
+
+    total = max(0.0, min(10.0, sum(p[1] for p in parts)))
+    for p in parts:
+        p[1] = round(p[1], 2)
+    return {"pop": round(total, 1), "pop_parts": parts, "pop_rate": round(rate, 1) if rate is not None else None,
+            "pop_known": rate is not None}
+
+
 # ---------------------------------------------------------------- FINRA daily short volume
 def parse_regsho(text: str) -> dict[str, tuple[float, float]]:
     """Parse a FINRA Reg SHO daily file: Date|Symbol|ShortVolume|ShortExemptVolume|TotalVolume|Market."""
@@ -301,21 +370,23 @@ def settle(state: dict, series_by_ticker: dict[str, list]) -> int:
     return done
 
 
-def calibration(state: dict) -> dict:
-    """How scores from this model version have actually played out."""
-    rows = [(sc[0], day["o"][t]) for day in state["days"] if day.get("m") == MODEL
-            for t, sc in day["s"].items() if t in day["o"]]
-    logged = [d for d in state["days"] if d.get("m") == MODEL]
+def calibration(state: dict, col: int = 0, hit: float = HIT) -> dict:
+    """How logged scores have actually played out. col 0 = squeeze meter, col 2 = pop score."""
+    def has(sc):
+        return len(sc) > col and sc[col] is not None
+    rows = [(sc[col], day["o"][t]) for day in state["days"] if day.get("m") == MODEL
+            for t, sc in day["s"].items() if t in day["o"] and has(sc)]
+    logged = [d for d in state["days"] if d.get("m") == MODEL and any(has(sc) for sc in d["s"].values())]
     buckets = []
     for label, lo, hi in BUCKETS:
         got = [o for s, o in rows if lo <= s < hi]
         buckets.append({
             "label": label, "lo": lo, "n": len(got),
-            "hit": round(sum(1 for o in got if o[0] >= HIT) / len(got) * 100) if got else None,
+            "hit": round(sum(1 for o in got if o[0] >= hit) / len(got) * 100) if got else None,
             "med_max": round(median(o[0] for o in got), 1) if got else None,
             "med_ret": round(median(o[1] for o in got), 1) if got else None,
         })
-    return {"model": MODEL, "horizon": HORIZON, "hit_pct": HIT, "settled": len(rows),
+    return {"model": MODEL, "horizon": HORIZON, "hit_pct": hit, "settled": len(rows),
             "days_logged": len(logged), "since": logged[0]["d"] if logged else None, "buckets": buckets}
 
 

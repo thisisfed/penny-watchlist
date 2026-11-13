@@ -143,6 +143,43 @@ class Audit(unittest.TestCase):
         self.assertIsNone(cal["buckets"][2]["hit"])
 
 
+class Pop(unittest.TestCase):
+    def series(self, step):
+        # alternating +step% / flat closes; highs equal closes
+        out, c = [], 1.0
+        for i in range(60):
+            c *= (1 + step / 100) if i % 5 == 0 else 1.0
+            out.append((f"d{i:02d}", c, c))
+        return out
+
+    def test_base_rate(self):
+        self.assertEqual(sq.pop_base_rate(self.series(12)), 100.0)   # a 12% jump every 5 sessions
+        self.assertEqual(sq.pop_base_rate(self.series(2)), 0.0)
+        self.assertIsNone(sq.pop_base_rate(self.series(12)[:15]))
+
+    def test_volatile_names_outscore_quiet_ones(self):
+        q = {"rel_vol": 3.0, "chg_pct": 4.0, "float_shares": 5e6}
+        hot = sq.pop_score({"next": "2026-11-14"}, q, [], self.series(12), TODAY)
+        calm = sq.pop_score({}, {"rel_vol": 0.8, "chg_pct": -1.0, "float_shares": 3e8}, [], self.series(2), TODAY)
+        self.assertGreater(hot["pop"], 6.5)
+        self.assertLess(calm["pop"], 2)
+        self.assertAlmostEqual(sum(p[1] for p in hot["pop_parts"]), hot["pop"], delta=0.06)
+
+    def test_fresh_offering_subtracts_and_unknown_history_is_marked(self):
+        q = {"rel_vol": 3.0, "chg_pct": 4.0}
+        f = [{"form": "424B5", "date": "2026-11-11"}, {"form": "424B5", "date": "2026-09-01"}]
+        self.assertAlmostEqual(sq.pop_score({}, q, [], self.series(12), TODAY)["pop"] - sq.pop_score({}, q, f, self.series(12), TODAY)["pop"], 0.75, delta=0.11)
+        self.assertFalse(sq.pop_score({}, q, [], [], TODAY)["pop_known"])
+
+    def test_pop_audit_uses_its_own_column_and_threshold(self):
+        st = sq.new_state()
+        sq.record_day(st, "2026-11-02", {"AAA": [1.0, 90, 8.0], "OLD": [1.0, 90]})
+        st["days"][0]["o"] = {"AAA": [12.0, 3.0], "OLD": [50.0, 1.0]}
+        cal = sq.calibration(st, col=2, hit=sq.POP_HIT)
+        self.assertEqual((cal["settled"], cal["buckets"][0]["n"], cal["buckets"][0]["hit"]), (1, 1, 100))
+        self.assertEqual(sq.calibration(st)["settled"], 2)
+
+
 class HistoryRow(unittest.TestCase):
     def test_bars_to_quote_fields(self):
         try:
