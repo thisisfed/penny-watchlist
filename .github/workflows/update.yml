@@ -2,10 +2,12 @@ name: Update data and deploy
 
 on:
   schedule:
-    # Every 30 minutes, 09:00–23:30 UTC, Monday–Friday
-    # (covers US pre-market from 04:00 ET through after-hours).
-    - cron: "*/30 9-23 * * 1-5"
-    # Once a day at weekends, so catalyst countdowns and the score stay current.
+    # Twice an hour, 09:13–23:43 UTC, Monday–Friday (US pre-market through after-hours).
+    # Deliberately off :00/:30 — GitHub drops most scheduled runs that ask for the busy minutes.
+    - cron: "13,43 9-23 * * 1-5"
+    # Extra passes after the US close so every session's scores get logged even if earlier runs were dropped.
+    - cron: "23 0-3 * * 2-6"
+    # Once a day at weekends, so catalyst countdowns and the scores stay current.
     - cron: "17 12 * * 0,6"
   push:
     branches: [main]
@@ -25,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+      url: ${{ steps.deploy.outputs.page_url || steps.deploy2.outputs.page_url }}
     steps:
       - uses: actions/checkout@v5
 
@@ -52,7 +54,14 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/state.json
-          git diff --cached --quiet || (git commit -q -m "Score log [skip ci]" && git pull -q --rebase && git push -q) || echo "::warning::score log not saved this run"
+          if ! git diff --cached --quiet; then
+            git commit -q -m "Score log [skip ci]"
+            for i in 1 2 3; do
+              git pull -q --rebase && git push -q && exit 0
+              sleep $((i * 5))
+            done
+            echo "::warning::score log not saved this run"
+          fi
 
       - name: Build site
         run: |
@@ -67,4 +76,13 @@ jobs:
           path: _site
 
       - id: deploy
+        uses: actions/deploy-pages@v4
+        continue-on-error: true   # GitHub's artifact API fails now and then; one retry clears it
+
+      - name: Retry deploy
+        if: steps.deploy.outcome == 'failure'
+        run: sleep 30
+
+      - id: deploy2
+        if: steps.deploy.outcome == 'failure'
         uses: actions/deploy-pages@v4

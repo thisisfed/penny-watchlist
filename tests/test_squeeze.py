@@ -143,6 +143,47 @@ class Audit(unittest.TestCase):
         self.assertIsNone(cal["buckets"][2]["hit"])
 
 
+class SplitsAndThirds(unittest.TestCase):
+    DAYS = ["2026-11-02", "2026-11-03", "2026-11-04", "2026-11-05", "2026-11-06", "2026-11-09"]
+
+    def state(self):
+        st = sq.new_state()
+        sq.record_day(st, self.DAYS[0], {"AAA": [3.0, 90, 5.0]})
+        return st
+
+    def test_unadjusted_reverse_split_is_rescaled_not_scored_as_a_20x(self):
+        raw = [0.10, 0.11, 2.4, 2.2, 2.0, 2.1]   # 1:20 split on the third bar, history not yet adjusted
+        ser = {"AAA": [(d, c, c) for d, c in zip(self.DAYS, raw)]}
+        st = self.state()
+        self.assertEqual(sq.settle(st, ser, {"AAA": {"date": self.DAYS[2], "ratio": 0.05}}), 1)
+        self.assertEqual(st["days"][0]["o"]["AAA"], [20.0, 5.0])
+
+    def test_already_adjusted_history_is_left_alone(self):
+        ser = [(d, c, c) for d, c in zip(self.DAYS, [2.0, 2.2, 2.4, 2.2, 2.0, 2.1])]
+        self.assertEqual(sq.split_safe(ser, {"date": self.DAYS[2], "ratio": 0.05}), ser)
+
+    def test_impossible_jump_without_a_known_split_is_not_graded(self):
+        ser = {"AAA": [(d, c, c) for d, c in zip(self.DAYS, [0.10, 0.11, 2.4, 2.2, 2.0, 2.1])]}
+        st = self.state()
+        self.assertEqual(sq.settle(st, ser), 0)
+        self.assertEqual(st["days"][0]["o"], {})
+
+    def test_suspect_stored_result_is_regraded(self):
+        st = self.state()
+        st["days"][0]["o"]["AAA"] = [2680.6, 1800.0]
+        ser = {"AAA": [(d, c, c) for d, c in zip(self.DAYS, [0.10, 0.11, 2.4, 2.2, 2.0, 2.1])]}
+        sq.settle(st, ser, {"AAA": {"date": self.DAYS[2], "ratio": 0.05}})
+        self.assertEqual(st["days"][0]["o"]["AAA"], [20.0, 5.0])
+
+    def test_thirds_rank_within_each_day(self):
+        st = sq.new_state()
+        sq.record_day(st, "2026-11-02", {f"T{i}": [float(i), 90] for i in range(9)})
+        st["days"][0]["o"] = {f"T{i}": [30.0 if i >= 6 else 1.0, float(i)] for i in range(9)}
+        top, bottom = sq.calibration(st)["thirds"]
+        self.assertEqual((top["n"], top["hit"], top["med_ret"]), (3, 100, 7.0))
+        self.assertEqual((bottom["n"], bottom["hit"], bottom["med_ret"]), (3, 0, 1.0))
+
+
 class Pop(unittest.TestCase):
     def series(self, step):
         # alternating +step% / flat closes; highs equal closes

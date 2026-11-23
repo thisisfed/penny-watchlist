@@ -350,14 +350,37 @@ def record_day(state: dict, bar_date: str, scores: dict[str, list]) -> bool:
     return True
 
 
-def settle(state: dict, series_by_ticker: dict[str, list]) -> int:
-    """Fill in what happened over the next HORIZON sessions for any logged score that has matured."""
+def split_safe(ser: list, split: dict | None) -> list:
+    """Yahoo adjusts old prices for a split a day or more late. If the history still shows the
+    raw jump across the split date, rescale the earlier bars ourselves."""
+    ratio = (split or {}).get("ratio")
+    if not ratio or ratio == 1:
+        return ser
+    i = next((k for k, r in enumerate(ser) if r[0] >= split["date"]), None)
+    if not i or not ser[i][1] or not ser[i - 1][1]:
+        return ser
+    jump, want = ser[i][1] / ser[i - 1][1], 1 / ratio
+    tol = 2.0 if want >= 5 or want <= 0.2 else 1.25
+    if abs(math.log(jump / want)) < math.log(tol):
+        return [(d, c / ratio if c else c, h / ratio if h else h) for d, c, h in ser[:i]] + list(ser[i:])
+    return ser
+
+
+def settle(state: dict, series_by_ticker: dict[str, list], splits: dict[str, dict] | None = None) -> int:
+    """Fill in what happened over the next HORIZON sessions for any logged score that has matured.
+
+    Guards against bad prices: histories are made split-safe first, a window containing a
+    one-day close move beyond 4x either way is left ungraded, and a stored result above
+    +300% is treated as suspect and graded again.
+    """
     done = 0
     for day in state["days"]:
         for t in day["s"]:
             if t in day["o"]:
-                continue
-            ser = series_by_ticker.get(t) or []
+                if abs(day["o"][t][0]) <= 300:
+                    continue
+                del day["o"][t]
+            ser = split_safe(series_by_ticker.get(t) or [], (splits or {}).get(t))
             idx = next((i for i, r in enumerate(ser) if r[0] == day["d"]), None)
             if idx is None or len(ser) < idx + 1 + HORIZON or not ser[idx][1]:
                 continue
@@ -365,9 +388,19 @@ def settle(state: dict, series_by_ticker: dict[str, list]) -> int:
             highs = [r[2] or r[1] for r in win if (r[2] or r[1])]
             if not highs or not win[-1][1]:
                 continue
+            closes = [base] + [r[1] for r in win if r[1]]
+            if any(not 0.25 <= y / x <= 4 for x, y in zip(closes, closes[1:])):
+                continue  # almost always an unadjusted split or a ticker change, not a real move
             day["o"][t] = [round((max(highs) / base - 1) * 100, 1), round((win[-1][1] / base - 1) * 100, 1)]
             done += 1
     return done
+
+
+def _grade(got: list, hit: float) -> dict:
+    return {"n": len(got),
+            "hit": round(sum(1 for o in got if o[0] >= hit) / len(got) * 100) if got else None,
+            "med_max": round(median(o[0] for o in got), 1) if got else None,
+            "med_ret": round(median(o[1] for o in got), 1) if got else None}
 
 
 def calibration(state: dict, col: int = 0, hit: float = HIT) -> dict:
@@ -377,17 +410,22 @@ def calibration(state: dict, col: int = 0, hit: float = HIT) -> dict:
     rows = [(sc[col], day["o"][t]) for day in state["days"] if day.get("m") == MODEL
             for t, sc in day["s"].items() if t in day["o"] and has(sc)]
     logged = [d for d in state["days"] if d.get("m") == MODEL and any(has(sc) for sc in d["s"].values())]
-    buckets = []
-    for label, lo, hi in BUCKETS:
-        got = [o for s, o in rows if lo <= s < hi]
-        buckets.append({
-            "label": label, "lo": lo, "n": len(got),
-            "hit": round(sum(1 for o in got if o[0] >= hit) / len(got) * 100) if got else None,
-            "med_max": round(median(o[0] for o in got), 1) if got else None,
-            "med_ret": round(median(o[1] for o in got), 1) if got else None,
-        })
+    buckets = [{"label": label, "lo": lo, **_grade([o for s, o in rows if lo <= s < hi], hit)}
+               for label, lo, hi in BUCKETS]
+    # Scale-free check: each day, did the top third of the list do better than the bottom third?
+    top, bottom = [], []
+    for day in state["days"]:
+        if day.get("m") != MODEL:
+            continue
+        ranked = sorted(((sc[col], t) for t, sc in day["s"].items() if t in day["o"] and has(sc)),
+                        key=lambda x: (-x[0], x[1]))
+        k = len(ranked) // 3
+        if k >= 3:
+            top += [day["o"][t] for _, t in ranked[:k]]
+            bottom += [day["o"][t] for _, t in ranked[-k:]]
+    thirds = [{"label": "Top third", **_grade(top, hit)}, {"label": "Bottom third", **_grade(bottom, hit)}]
     return {"model": MODEL, "horizon": HORIZON, "hit_pct": hit, "settled": len(rows),
-            "days_logged": len(logged), "since": logged[0]["d"] if logged else None, "buckets": buckets}
+            "days_logged": len(logged), "since": logged[0]["d"] if logged else None, "buckets": buckets, "thirds": thirds}
 
 
 def use_cache(q: dict, cached: dict | None, today: date) -> str | None:

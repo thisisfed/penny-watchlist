@@ -420,11 +420,12 @@ def main():
         shortvol = fetch_short_volume(errors)
         movers = scan_movers(errors)
 
-    series = {}
+    series, splits = {}, {}
     for s in wl["stocks"]:
         t = s["ticker"]
         q = prices.setdefault(t, {})
         series[t] = q.pop("_series", [])
+        splits[t] = q.get("split")
         flags = []
         note = squeeze.use_cache(q, state["fundamentals"].get(t), today)
         if note:
@@ -450,10 +451,16 @@ def main():
     dates = [v["as_of"] for v in prices.values() if v.get("as_of")]
     bar = max(set(dates), key=dates.count) if dates else None
     finished = bar and (bar < today.isoformat() or frac >= 1 and now.astimezone(squeeze.NY).hour * 60 + now.astimezone(squeeze.NY).minute >= 980)
+    logged = False
     if finished and not is_mock:
-        squeeze.record_day(state, bar, {t: [v["score"], v["conf"], v.get("pop") if v.get("pop_known") else None] for t, v in prices.items()
+        logged = squeeze.record_day(state, bar, {t: [v["score"], v["conf"], v.get("pop") if v.get("pop_known") else None] for t, v in prices.items()
                                         if v.get("as_of") == bar and v.get("score") is not None})
-    squeeze.settle(state, series)
+    graded = squeeze.settle(state, series, splits)
+    unpriced = [t for t in tickers if not prices[t].get("as_of")]
+    if unpriced:
+        errors.append("No price history (delisted, halted or renamed?): " + ", ".join(unpriced))
+    print(f"score log: last bar {bar}, session finished {bool(finished)}, logged today {logged}, "
+          f"newly graded {graded}, days on file {len(state['days'])}")
     if not is_mock:
         STATE.write_text(json.dumps(state, separators=(",", ":"), allow_nan=False) + "\n")
 

@@ -260,7 +260,7 @@ footer{margin-top:28px;color:var(--mute);font-size:12px}
 </ul></div>
 
 <p class="mute small" id="errs"></p>
-<footer>Data: Yahoo Finance (delayed; float and short interest where available, short interest reported twice monthly), FINRA daily short-sale volume (off-exchange trades only) and SEC EDGAR. Borrow fees and share availability are not included: there is no dependable free source. Refreshed every 30 minutes, 09:00–23:30 UK time on weekdays, plus a weekend pass. Stars, notes and alerts stay in this browser only. Notes are hand-written and can go stale. Not financial advice. <a href="https://github.com/thisisfed/penny-watchlist">Source on GitHub</a>.</footer>
+<footer>Data: Yahoo Finance (delayed; float and short interest where available, short interest reported twice monthly), FINRA daily short-sale volume (off-exchange trades only) and SEC EDGAR. Borrow fees and share availability are not included: there is no dependable free source. Scheduled twice an hour, 09:00–23:45 UK time on weekdays, plus a weekend pass; GitHub sometimes skips runs, so trust the timestamp at the top. Stars, notes and alerts stay in this browser only. Notes are hand-written and can go stale. Not financial advice. <a href="https://github.com/thisisfed/penny-watchlist">Source on GitHub</a>.</footer>
 </div>
 
 <script>
@@ -492,11 +492,15 @@ function movers(){
 function auditBlock(c,name){
   const pc=v=>v==null?'—':(v>0?'+':'')+v+'%';
   const rows=c.buckets.map(b=>`<tr><td><b>${esc(b.label)}</b> <span class="mute">${b.label==='High'?'6.5+':b.label==='Mid'?'4.5–6.5':'under 4.5'}</span></td><td class="num">${b.n}</td><td class="num">${b.hit==null?'—':b.hit+'%'}</td><td class="num">${pc(b.med_max)}</td><td class="num">${pc(b.med_ret)}</td></tr>`).join('');
-  const hi=c.buckets[0],lo=c.buckets[2];let verdict;
-  if(hi.n<30||lo.n<30)verdict=`Too few graded scores to judge yet (${c.settled} so far; a verdict needs 30+ in both the High and Low rows). Treat it as unproven until then.`;
-  else if(hi.hit>=lo.hit+10)verdict=`So far high scores have run ${c.hit_pct}%+ more often than low ones (${hi.hit}% vs ${lo.hit}%).`;
-  else verdict=`So far high scores have NOT beaten low ones (${hi.hit}% vs ${lo.hit}%). On this evidence it is not adding information.`;
-  return `<h4 style="margin:0 0 6px">${name}</h4><div style="overflow-x:auto"><table class="audit"><thead><tr><th>Score that day</th><th class="num">Graded</th><th class="num">Ran ${c.hit_pct}%+</th><th class="num">Best gain</th><th class="num">After ${c.horizon}d</th></tr></thead><tbody>${rows}</tbody></table></div>
+  const th=c.thirds||[],row=(b,sub)=>`<tr><td><b>${esc(b.label)}</b> <span class="mute">${sub}</span></td><td class="num">${b.n}</td><td class="num">${b.hit==null?'—':b.hit+'%'}</td><td class="num">${pc(b.med_max)}</td><td class="num">${pc(b.med_ret)}</td></tr>`;
+  const trows=th.length?`<tr><td colspan="5" class="mute small" style="padding-top:12px">Ranked within each day, whatever the absolute score</td></tr>`+row(th[0],'of the list')+row(th[1],'of the list'):'';
+  let hi=c.buckets[0],lo=c.buckets[2],what='high scores',vs='low ones',hv='have';
+  if((hi.n<30||lo.n<30)&&th.length){hi=th[0];lo=th[1];what='the top-ranked third';vs='the bottom third';hv='has'}
+  let verdict;
+  if(hi.n<30||lo.n<30)verdict=`Too few graded scores to judge yet (${c.settled} so far; a verdict needs 30+ in both the top and bottom thirds). Treat it as unproven until then.`;
+  else if(hi.hit>=lo.hit+10||(hi.hit>=lo.hit&&hi.med_ret>=lo.med_ret+5))verdict=`So far ${what} ${hv} done better than ${vs}: ran ${c.hit_pct}%+ ${hi.hit}% vs ${lo.hit}% of the time, median ${c.horizon}-day result ${pc(hi.med_ret)} vs ${pc(lo.med_ret)}.`;
+  else verdict=`So far ${what} ${hv} NOT beaten ${vs} (ran ${c.hit_pct}%+ ${hi.hit}% vs ${lo.hit}%; median ${c.horizon}-day result ${pc(hi.med_ret)} vs ${pc(lo.med_ret)}). On this evidence it is not adding information.`;
+  return `<h4 style="margin:0 0 6px">${name}</h4><div style="overflow-x:auto"><table class="audit"><thead><tr><th>Score that day</th><th class="num">Graded</th><th class="num">Ran ${c.hit_pct}%+</th><th class="num">Best gain</th><th class="num">After ${c.horizon}d</th></tr></thead><tbody>${rows}${trows}</tbody></table></div>
   <p class="small" style="margin:10px 0 0"><b>${verdict}</b></p>`}
 function audit(){
   const c=LIVE?.calibration,pc=LIVE?.pop_calibration,el=$('#audit');if(!c){el.innerHTML='<span class="mute">No audit data yet.</span>';return}
@@ -508,7 +512,11 @@ function freshness(){
   const d=new Date(LIVE.updated_at);const f=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).formatToParts(d);
   const g=t=>f.find(p=>p.type===t).value;const age=Math.round((Date.now()-d)/6e4);
   $('#upd').textContent=`Data ${g('day')} ${g('month')} ${g('year')}, ${g('hour')}:${g('minute')} London (${age<60?age+' min':Math.round(age/60)+' h'} ago)`;
-  $('#dot').classList.toggle('stale',Date.now()-d>36*36e5);$('#next-run').textContent='Refreshes every 30 min on weekdays';
+  const lon=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',weekday:'short',hour:'2-digit',hour12:false}).formatToParts(new Date());
+  const wk=!['Sat','Sun'].includes(lon.find(p=>p.type==='weekday').value),hr=+lon.find(p=>p.type==='hour').value,due=wk&&hr>=10;
+  const late=due?age>120:age>36*60;
+  $('#dot').classList.toggle('stale',late);
+  $('#next-run').textContent=late?`Refresh overdue — GitHub's scheduler is running late, so prices and scores below are ${age<60?age+' min':Math.round(age/60)+' h'} old`:'Scheduled twice an hour on weekdays';
   const errs=LIVE.errors||[];$('#errs').textContent=errs.length?`${errs.length} data warning${errs.length>1?'s':''} in the last run — some fields may be blank.`:'';
 }
 
